@@ -100,6 +100,7 @@ export class SettingsTab extends PluginSettingTab {
       .setHeading();
 
     const rules = [
+      { name: 'frontmatter', label: 'Frontmatter 格式化' },
       { name: 'heading', label: '标题规范化' },
       { name: 'paragraph', label: '段落格式化' },
       { name: 'list', label: '列表格式化' },
