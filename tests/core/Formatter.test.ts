@@ -158,5 +158,71 @@ describe('Formatter', () => {
       // 内容应该保留
       expect(result.content).toContain('update: 2026-04-21 18:12:48 星期二');
     });
+
+    it('段落后面接二级标题，应该只保留一个空行', async () => {
+      const input = '## 标题A\n\n正文内容\n\n\n\n## 标题B';
+      const settings: PluginSettings = {
+        fileSizeThreshold: 500,
+        chunkSize: 100,
+        autoDetectEncoding: true,
+        fallbackEncoding: 'utf-8',
+        rules: {},
+      };
+
+      const result = await formatter.format(input, settings);
+      expect(result.success).toBe(true);
+      console.log('输出结果(无规则):', result.content);
+
+      // 检查段落和标题B之间的空行数
+      const lines = result.content!.split('\n');
+      const contentIndex = lines.findIndex(line => line.includes('正文内容'));
+      const titleBIndex = lines.findIndex(line => line.includes('标题B'));
+
+      // 计算两个非空行之间的空行数
+      let blankLinesBetween = 0;
+      for (let i = contentIndex + 1; i < titleBIndex; i++) {
+        if (lines[i].trim() === '') {
+          blankLinesBetween++;
+        }
+      }
+
+      // 段落和标题是不同类型块元素，应该只有1个空行
+      expect(blankLinesBetween).toBe(1);
+    });
+
+    it('使用完整规则链时，段落后面接二级标题应该只保留一个空行', async () => {
+      // 注册完整的规则链
+      const { registerBuiltinRules } = await import('../../src/rules');
+      registerBuiltinRules(registry);
+
+      const input = '## 标题A\n\n正文内容\n\n\n\n## 标题B';
+      const settings: PluginSettings = {
+        fileSizeThreshold: 500,
+        chunkSize: 100,
+        autoDetectEncoding: true,
+        fallbackEncoding: 'utf-8',
+        rules: {},
+      };
+
+      const result = await formatter.format(input, settings);
+      expect(result.success).toBe(true);
+      console.log('输出结果(完整规则):', result.content);
+
+      // 检查段落和标题B之间的空行数
+      const lines = result.content!.split('\n');
+      const contentIndex = lines.findIndex(line => line.includes('正文内容'));
+      const titleBIndex = lines.findIndex(line => line.includes('标题B'));
+
+      // 计算两个非空行之间的空行数
+      let blankLinesBetween = 0;
+      for (let i = contentIndex + 1; i < titleBIndex; i++) {
+        if (lines[i].trim() === '') {
+          blankLinesBetween++;
+        }
+      }
+
+      // 段落和标题是不同类型块元素，应该只有1个空行
+      expect(blankLinesBetween).toBe(1);
+    });
   });
 });

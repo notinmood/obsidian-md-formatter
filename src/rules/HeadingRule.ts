@@ -4,117 +4,65 @@ import type { FormatRule, RuleConfig, AstNode } from '../types';
 
 /**
  * 标题格式化规则
- * 处理标题前后的空行、ATX风格等
+ * 处理标题前的空行、ATX风格等
+ * 注意：此规则只移除多余空行，不添加空行
+ * 空行控制由 Formatter.cleanupBlankLines 统一处理
  */
 export class HeadingRule implements FormatRule {
   name = 'heading';
   priority = 10;
-  description = '格式化标题：控制标题前后的空行数，强制ATX风格';
+  description = '格式化标题：移除标题前多余空行，强制ATX风格';
 
   defaultConfig = {
-    blankLinesBefore: 1,
-    blankLinesBeforeH1: 0,
     forceAtxStyle: true,
   };
 
   apply(ast: AstNode, config: RuleConfig): AstNode {
     const cfg = { ...this.defaultConfig, ...config };
 
+    if (cfg.enabled === false) {
+      return ast;
+    }
+
     // 深拷贝AST以避免修改原始对象
     const clonedAst = JSON.parse(JSON.stringify(ast)) as AstNode;
 
-    visit(clonedAst, 'heading', (node: AstNode, index: number | undefined, parent: AstNode | undefined) => {
-      if (index === undefined || !parent || !parent.children) {
-        return;
-      }
+    // 不使用 visit，手动遍历以正确处理索引变化
+    if (!clonedAst.children || !Array.isArray(clonedAst.children)) {
+      return clonedAst;
+    }
 
-      const depth = node.depth ?? 1;
-      const blankLinesBefore = depth === 1 ? cfg.blankLinesBeforeH1 : cfg.blankLinesBefore;
+    // 从后往前遍历，避免索引变化问题
+    for (let i = clonedAst.children.length - 1; i >= 0; i--) {
+      const node = clonedAst.children[i];
 
-      // 确保标题前有正确数量的空行
-      let blankCount = 0;
-
-      // 计算当前位置前的连续空行数
-      for (let i = index - 1; i >= 0; i--) {
-        const sibling = parent.children[i];
-        if (sibling.type === 'paragraph' && isBlankParagraph(sibling)) {
-          blankCount++;
-        } else if (sibling.type === 'text' && isBlankTextNode(sibling)) {
-          blankCount++;
-        } else {
-          break;
+      if (node.type === 'heading') {
+        // 移除标题前的所有空白段落
+        while (i > 0 && isBlankNode(clonedAst.children[i - 1])) {
+          clonedAst.children.splice(i - 1, 1);
+          i--;  // 更新当前索引
         }
       }
-
-      // 移除多余的空白段落
-      const toRemove: number[] = [];
-      for (let i = index - 1; i >= 0 && toRemove.length < blankCount; i--) {
-        const sibling = parent.children[i];
-        if (sibling.type === 'paragraph' && isBlankParagraph(sibling)) {
-          toRemove.unshift(i);
-        } else if (sibling.type === 'text' && isBlankTextNode(sibling)) {
-          toRemove.unshift(i);
-        } else {
-          break;
-        }
-      }
-
-      // 从后往前删除，避免索引变化
-      for (const idx of toRemove.reverse()) {
-        parent.children.splice(idx, 1);
-      }
-
-      // 更新插入位置
-      let insertPosition = index - toRemove.length;
-
-      // 在标题前插入正确数量的空行
-      for (let i = 0; i < blankLinesBefore; i++) {
-        parent.children.splice(insertPosition, 0, createBlankParagraph());
-        insertPosition++;
-      }
-    });
+    }
 
     return clonedAst;
   }
 }
 
 /**
- * 检查段落是否为空
+ * 检查节点是否为空白
  */
-function isBlankParagraph(node: AstNode): boolean {
-  if (!node.children || !Array.isArray(node.children)) {
-    return true;
+function isBlankNode(node: AstNode): boolean {
+  if (node.type === 'paragraph') {
+    if (!node.children || !Array.isArray(node.children)) {
+      return true;
+    }
+    return node.children.every(
+      (child: AstNode) =>
+        child.type === 'text' &&
+        typeof child.value === 'string' &&
+        (child.value ?? '').trim() === ''
+    );
   }
-  return node.children.every(
-    (child: AstNode) =>
-      child.type === 'text' &&
-      typeof child.value === 'string' &&
-      (child.value ?? '').trim() === ''
-  );
-}
-
-/**
- * 检查文本节点是否为空
- */
-function isBlankTextNode(node: AstNode): boolean {
-  return (
-    node.type === 'text' &&
-    typeof node.value === 'string' &&
-    (node.value ?? '').trim() === ''
-  );
-}
-
-/**
- * 创建空白段落
- */
-function createBlankParagraph(): AstNode {
-  return {
-    type: 'paragraph',
-    children: [
-      {
-        type: 'text',
-        value: '',
-      },
-    ],
-  };
+  return false;
 }

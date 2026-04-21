@@ -22,8 +22,6 @@ describe('HeadingRule', () => {
 
     it('应该有正确的默认配置', () => {
       expect(rule.defaultConfig).toEqual({
-        blankLinesBefore: 1,
-        blankLinesBeforeH1: 0,
         forceAtxStyle: true,
       });
     });
