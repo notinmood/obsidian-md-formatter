@@ -313,5 +313,27 @@ describe('Formatter', () => {
       expect(lines[yamlEndIndex + 1]).toBe('');
       expect(lines[yamlEndIndex + 2]).toMatch(/^#\s+/);
     });
+
+    it('Obsidian wikilink格式 ![[和 [[ 不应被转义', async () => {
+      const input = '![[SomeDocumentName]]\n\n这是链接 [[AnotherDoc]]';
+      const settings: PluginSettings = {
+        fileSizeThreshold: 500,
+        chunkSize: 100,
+        autoDetectEncoding: true,
+        fallbackEncoding: 'utf-8',
+        rules: {},
+      };
+
+      const result = await formatter.format(input, settings);
+      expect(result.success).toBe(true);
+      console.log('输出结果(wikilink):', result.content);
+
+      // wikilink 格式不应被转义，应该保持原样
+      expect(result.content).toContain('![[SomeDocumentName]]');
+      expect(result.content).toContain('[[AnotherDoc]]');
+      // 不应出现转义后的格式
+      expect(result.content).not.toContain('\\[');
+      expect(result.content).not.toContain('\\]');
+    });
   });
 });

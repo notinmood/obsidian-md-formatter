@@ -30,6 +30,13 @@ export class Formatter {
         .use(remarkFrontmatter, ['yaml'])  // 支持 YAML frontmatter
         .use(remarkStringify, {
           bullet: '-',  // 无序列表使用 - 标记
+          // 自定义转义：不转义 [ 和 ]，保留 Obsidian 的 [[wikilink]] 格式
+          handlers: {
+            text: (node: { value: string }) => {
+              // 返回原始文本，不进行转义
+              return node.value;
+            },
+          },
         })
         .use(remarkFrontmatter, ['yaml']);  // stringify 时也需要 frontmatter 支持
       const ast = processor.parse(content);
