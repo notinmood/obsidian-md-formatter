@@ -13,7 +13,6 @@ export class HeadingRule implements FormatRule {
 
   defaultConfig = {
     blankLinesBefore: 1,
-    blankLinesAfter: 1,
     blankLinesBeforeH1: 0,
     forceAtxStyle: true,
   };
