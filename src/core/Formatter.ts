@@ -16,7 +16,11 @@ export class Formatter {
   async format(content: string, settings: PluginSettings): Promise<FormatResult> {
     try {
       // 使用 unified 处理器
-      const processor = unified().use(remarkParse).use(remarkStringify);
+      const processor = unified()
+        .use(remarkParse)
+        .use(remarkStringify, {
+          bullet: '-',  // 无序列表使用 - 标记
+        });
       const ast = processor.parse(content);
 
       const enabledRules = this.getEnabledRules(settings.rules);
