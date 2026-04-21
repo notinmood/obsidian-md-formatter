@@ -224,5 +224,40 @@ describe('Formatter', () => {
       // 段落和标题是不同类型块元素，应该只有1个空行
       expect(blankLinesBetween).toBe(1);
     });
+
+    it('正文和代码块之间应该只有1个空行', async () => {
+      // 注册完整的规则链
+      const { registerBuiltinRules } = await import('../../src/rules');
+      registerBuiltinRules(registry);
+
+      const input = '正文内容\n\n\n\n```\ncode here\n```';
+      const settings: PluginSettings = {
+        fileSizeThreshold: 500,
+        chunkSize: 100,
+        autoDetectEncoding: true,
+        fallbackEncoding: 'utf-8',
+        rules: {},
+      };
+
+      const result = await formatter.format(input, settings);
+      expect(result.success).toBe(true);
+      console.log('输出结果(正文+代码块):', result.content);
+
+      // 检查段落和代码块之间的空行数
+      const lines = result.content!.split('\n');
+      const contentIndex = lines.findIndex(line => line.includes('正文内容'));
+      const codeIndex = lines.findIndex(line => line.startsWith('```'));
+
+      // 计算两个非空行之间的空行数
+      let blankLinesBetween = 0;
+      for (let i = contentIndex + 1; i < codeIndex; i++) {
+        if (lines[i].trim() === '') {
+          blankLinesBetween++;
+        }
+      }
+
+      // 段落和代码块是不同类型块元素，应该只有1个空行
+      expect(blankLinesBetween).toBe(1);
+    });
   });
 });

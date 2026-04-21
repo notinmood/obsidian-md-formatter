@@ -81,7 +81,7 @@ export default class MarkdownFormatterPlugin extends Plugin {
       ? createProgressCallback()
       : undefined;
 
-    const result = await this.processor.processContent(content, this.settings, progressCallback);
+    const result = await this.processor.processContent(content, this.settings, progressCallback, file.basename);
 
     if (result.success && result.content) {
       editor.setValue(result.content);
@@ -127,7 +127,7 @@ export default class MarkdownFormatterPlugin extends Plugin {
     for (const file of mdFiles) {
       try {
         const content = await this.app.vault.read(file);
-        const result = await this.processor.processContent(content, this.settings);
+        const result = await this.processor.processContent(content, this.settings, undefined, file.basename);
 
         if (result.success && result.content && result.content !== content) {
           await this.app.vault.modify(file, result.content);

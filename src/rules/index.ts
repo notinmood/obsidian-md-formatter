@@ -1,6 +1,7 @@
 // src/rules/index.ts
 import type { RuleRegistry } from '../core/RuleRegistry';
 import { FrontmatterRule } from './FrontmatterRule';
+import { HeadingStructureRule } from './HeadingStructureRule';
 import { HeadingRule } from './HeadingRule';
 import { ParagraphRule } from './ParagraphRule';
 import { ListRule } from './ListRule';
@@ -13,6 +14,7 @@ import { LinkRule } from './LinkRule';
  */
 export function registerBuiltinRules(registry: RuleRegistry): void {
   registry.register(new FrontmatterRule());
+  registry.register(new HeadingStructureRule());
   registry.register(new HeadingRule());
   registry.register(new ParagraphRule());
   registry.register(new ListRule());
@@ -22,6 +24,7 @@ export function registerBuiltinRules(registry: RuleRegistry): void {
 }
 
 export { FrontmatterRule } from './FrontmatterRule';
+export { HeadingStructureRule } from './HeadingStructureRule';
 export { HeadingRule } from './HeadingRule';
 export { ParagraphRule } from './ParagraphRule';
 export { ListRule } from './ListRule';

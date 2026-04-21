@@ -4,100 +4,118 @@ import type { FormatRule, RuleConfig, AstNode } from '../types';
 
 /**
  * 代码块格式化规则
- * 处理代码块前后空行、语言标识等
+ * 处理代码块语言标识等
+ * 注意：此规则不处理空行，空行控制由 Formatter.cleanupBlankLines 统一处理
  */
 export class CodeBlockRule implements FormatRule {
   name = 'codeBlock';
   priority = 40;
-  description = '格式化代码块：控制代码块前后空行，自动补全语言标识';
+  description = '格式化代码块：自动补全语言标识，推断代码语言';
 
   defaultConfig = {
-    blankLinesBefore: 1,
-    blankLinesAfter: 1,
     addLanguageHint: true,
+    defaultLanguage: 'plain',
   };
 
   apply(ast: AstNode, config: RuleConfig): AstNode {
     const cfg = { ...this.defaultConfig, ...config };
 
+    if (cfg.enabled === false) {
+      return ast;
+    }
+
     // 深拷贝AST以避免修改原始对象
     const clonedAst = JSON.parse(JSON.stringify(ast)) as AstNode;
 
-    visit(clonedAst, 'code', (node: AstNode, index: number | undefined, parent: AstNode | undefined) => {
-      if (index === undefined || !parent || !parent.children) {
-        return;
-      }
-
+    visit(clonedAst, 'code', (node: AstNode) => {
       // 自动补全语言标识
       if (cfg.addLanguageHint && !node.lang) {
-        node.lang = '';
+        // 尝试推断语言
+        const inferredLang = this.inferLanguage(node.value as string);
+        node.lang = inferredLang || cfg.defaultLanguage || 'plain';
       }
-
-      // 确保代码块前有正确数量的空行
-      this.ensureBlankLinesBefore(parent, index, cfg.blankLinesBefore);
     });
 
     return clonedAst;
   }
 
   /**
-   * 确保节点前有指定数量的空行
+   * 推断代码语言
    */
-  private ensureBlankLinesBefore(parent: AstNode, index: number, blankLines: number): void {
-    if (!parent.children) {
-      return;
+  private inferLanguage(code: string): string | null {
+    if (!code || typeof code !== 'string') {
+      return null;
     }
 
-    // 计算当前位置前的连续空白节点数
-    let blankCount = 0;
-    for (let i = index - 1; i >= 0; i--) {
-      const sibling = parent.children[i];
-      if (isBlankNode(sibling)) {
-        blankCount++;
-      } else {
-        break;
+    const trimmedCode = code.trim();
+
+    // 常见语言特征检测
+    const languagePatterns: Array<{ pattern: RegExp | ((code: string) => boolean); lang: string }> = [
+      // TypeScript/JavaScript
+      { pattern: /^import\s+.*from\s+['"]|export\s+(default\s+)?|const\s+\w+\s*=|let\s+\w+\s*=|async\s+function|=>\s*{/m, lang: 'typescript' },
+      { pattern: /interface\s+\w+\s*{|type\s+\w+\s*=/, lang: 'typescript' },
+      { pattern: /<\w+[^>]*>/, lang: 'typescript' }, // JSX/TSX
+
+      // Python
+      { pattern: /^def\s+\w+\s*\(|^import\s+\w+|^from\s+\w+\s+import|^class\s+\w+.*:/m, lang: 'python' },
+      { pattern: /if\s+__name__\s*==\s*['"]__main__['"]/, lang: 'python' },
+
+      // Shell/Bash
+      { pattern: /^#!/, lang: 'bash' },
+      { pattern: /^\s*(echo|cd|ls|mkdir|rm|chmod|export|source)\s/m, lang: 'bash' },
+
+      // JSON
+      { pattern: (code: string) => {
+        try { JSON.parse(code); return true; } catch { return false; }
+      }, lang: 'json' },
+
+      // YAML
+      { pattern: /^\s*[\w-]+:\s*$/m, lang: 'yaml' },
+      { pattern: /^\s*-\s+\w+:/m, lang: 'yaml' },
+
+      // Markdown
+      { pattern: /^#{1,6}\s+|^\*{3,}$|^---$/m, lang: 'markdown' },
+
+      // HTML
+      { pattern: /<!DOCTYPE|<html|<head|<body|<div|<span|<p>/i, lang: 'html' },
+
+      // CSS
+      { pattern: /^\s*[\w-]+\s*:\s*[\w-]+;/m, lang: 'css' },
+      { pattern: /^\s*[\w-]+\s*{/m, lang: 'css' },
+
+      // SQL
+      { pattern: /^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\s/i, lang: 'sql' },
+
+      // Go
+      { pattern: /^package\s+\w+|^func\s+\w+|^import\s*\(/m, lang: 'go' },
+
+      // Rust
+      { pattern: /^fn\s+\w+|^use\s+\w+|^let\s+mut\s+|^impl\s+/m, lang: 'rust' },
+
+      // Java
+      { pattern: /^public\s+class|^private\s+\w+|^import\s+java\./m, lang: 'java' },
+
+      // C/C++
+      { pattern: /^#include|^int\s+main|^void\s+\w+\s*\(/m, lang: 'c' },
+      { pattern: /std::|cout|cin|namespace/, lang: 'cpp' },
+
+      // Ruby
+      { pattern: /^def\s+\w+|^require\s+['"]|^class\s+\w+|^end$/m, lang: 'ruby' },
+
+      // PHP
+      { pattern: /<\?php|\$\w+\s*=/, lang: 'php' },
+    ];
+
+    for (const { pattern, lang } of languagePatterns) {
+      if (typeof pattern === 'function') {
+        if (pattern(trimmedCode)) {
+          return lang;
+        }
+      } else if (pattern.test(trimmedCode)) {
+        return lang;
       }
     }
 
-    // 如果空行数不足，在节点前插入空行
-    if (blankCount < blankLines) {
-      const toInsert = blankLines - blankCount;
-      for (let i = 0; i < toInsert; i++) {
-        parent.children.splice(index, 0, createBlankParagraph());
-      }
-    }
+    return null;
   }
-}
-
-/**
- * 检查节点是否为空白
- */
-function isBlankNode(node: AstNode): boolean {
-  if (node.type === 'paragraph') {
-    if (!node.children || node.children.length === 0) {
-      return true;
-    }
-    return node.children.every(
-      (child: AstNode) =>
-        child.type === 'text' &&
-        typeof child.value === 'string' &&
-        (child.value ?? '').trim() === ''
-    );
-  }
-  return false;
-}
-
-/**
- * 创建空白段落
- */
-function createBlankParagraph(): AstNode {
-  return {
-    type: 'paragraph',
-    children: [
-      {
-        type: 'text',
-        value: '',
-      },
-    ],
-  };
 }

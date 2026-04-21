@@ -21,9 +21,8 @@ describe('CodeBlockRule', () => {
 
     it('应该有正确的默认配置', () => {
       expect(rule.defaultConfig).toEqual({
-        blankLinesBefore: 1,
-        blankLinesAfter: 1,
         addLanguageHint: true,
+        defaultLanguage: 'plain',
       });
     });
   });

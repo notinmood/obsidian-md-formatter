@@ -43,7 +43,7 @@ export interface FormatRule {
   /** 默认配置 */
   defaultConfig: Record<string, unknown>;
   /** 应用规则转换AST */
-  apply(ast: AstNode, config: RuleConfig): AstNode;
+  apply(ast: AstNode, config: RuleConfig, filename?: string): AstNode;
 }
 
 /**

@@ -8,13 +8,21 @@ import type { FormatRule, PluginSettings, FormatResult, RuleConfig, AstNode } fr
 import { RuleRegistry } from './RuleRegistry';
 
 /**
+ * 格式化选项
+ */
+export interface FormatOptions {
+  /** 文件名（用于生成一级标题） */
+  filename?: string;
+}
+
+/**
  * 格式化器核心
  * 负责解析Markdown、应用规则、生成格式化结果
  */
 export class Formatter {
   constructor(private registry: RuleRegistry) {}
 
-  async format(content: string, settings: PluginSettings): Promise<FormatResult> {
+  async format(content: string, settings: PluginSettings, options?: FormatOptions): Promise<FormatResult> {
     try {
       // 使用 unified 处理器
       const processor = unified()
@@ -33,7 +41,7 @@ export class Formatter {
 
       for (const rule of enabledRules) {
         const ruleConfig = settings.rules[rule.name] || { enabled: true };
-        transformedAst = rule.apply(transformedAst as unknown as AstNode, ruleConfig) as unknown as Node;
+        transformedAst = rule.apply(transformedAst as unknown as AstNode, ruleConfig, options?.filename) as unknown as Node;
         rulesApplied++;
       }
 
