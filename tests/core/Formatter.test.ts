@@ -259,5 +259,59 @@ describe('Formatter', () => {
       // 段落和代码块是不同类型块元素，应该只有1个空行
       expect(blankLinesBetween).toBe(1);
     });
+
+    it('文档开头不能有空行，第一行就是一级标题', async () => {
+      // 注册完整的规则链
+      const { registerBuiltinRules } = await import('../../src/rules');
+      registerBuiltinRules(registry);
+
+      // 没有标题的文档，传入文件名后会添加一级标题
+      const input = '\n\n\n正文内容';
+      const settings: PluginSettings = {
+        fileSizeThreshold: 500,
+        chunkSize: 100,
+        autoDetectEncoding: true,
+        fallbackEncoding: 'utf-8',
+        rules: {},
+      };
+
+      const result = await formatter.format(input, settings, { filename: 'MyDoc' });
+      expect(result.success).toBe(true);
+      console.log('输出结果(开头空行):', result.content);
+
+      const lines = result.content!.split('\n');
+      // 第一行应该是一级标题，不能是空行
+      expect(lines[0]).toMatch(/^#\s+/);
+    });
+
+    it('frontmatter后应该直接是标题，只有一个空行', async () => {
+      // 注册完整的规则链
+      const { registerBuiltinRules } = await import('../../src/rules');
+      registerBuiltinRules(registry);
+
+      const input = '---\nupdate: 2026-04-21\n---\n\n\n\n# Title';
+      const settings: PluginSettings = {
+        fileSizeThreshold: 500,
+        chunkSize: 100,
+        autoDetectEncoding: true,
+        fallbackEncoding: 'utf-8',
+        rules: {},
+      };
+
+      const result = await formatter.format(input, settings, { filename: 'TestDoc' });
+      expect(result.success).toBe(true);
+      console.log('输出结果(frontmatter后):', result.content);
+
+      const lines = result.content!.split('\n');
+      // 找到 frontmatter 结束的 ---
+      const yamlEndIndex = lines.findIndex((line, idx) => idx > 0 && line === '---');
+
+      // frontmatter 结束后，应该只有一个空行，然后是标题
+      // lines[yamlEndIndex] 是 ---
+      // lines[yamlEndIndex + 1] 应该是空行
+      // lines[yamlEndIndex + 2] 应该是标题
+      expect(lines[yamlEndIndex + 1]).toBe('');
+      expect(lines[yamlEndIndex + 2]).toMatch(/^#\s+/);
+    });
   });
 });
