@@ -140,6 +140,11 @@ obsidian-md-formatter/
 └── package.json
 ```
 
+
+## 参考资料
+
+- [微软 Markdown 最佳做法](https://learn.microsoft.com/zh-cn/powershell/scripting/community/contributing/general-markdown?view=powershell-7.6)
+
 ## 许可证
 
 MIT
