@@ -1,4 +1,34 @@
-import type { Node } from 'unist';
+import type { Node, Parent } from 'unist';
+
+// 导出 Node 类型供测试使用
+export type { Node };
+
+/**
+ * 扩展的 AST 节点类型
+ * 使用宽松的类型定义以兼容 remark AST
+ */
+export interface AstNode {
+  type: string;
+  children?: AstNode[];
+  value?: string;
+  depth?: number;
+  // 代码块属性
+  lang?: string;
+  meta?: string;
+  // 链接属性
+  url?: string;
+  title?: string | null;
+  alt?: string | null;
+  identifier?: string;
+  // 列表属性
+  ordered?: boolean;
+  start?: number;
+  spread?: boolean;
+  // 表格属性
+  align?: ('left' | 'right' | 'center' | null)[];
+  // 其他可能的属性
+  [key: string]: unknown;
+}
 
 /**
  * 格式化规则接口
@@ -13,7 +43,7 @@ export interface FormatRule {
   /** 默认配置 */
   defaultConfig: Record<string, unknown>;
   /** 应用规则转换AST */
-  apply(ast: Node, config: RuleConfig): Node;
+  apply(ast: AstNode, config: RuleConfig): AstNode;
 }
 
 /**

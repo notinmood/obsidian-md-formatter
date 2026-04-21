@@ -1,7 +1,6 @@
 // src/rules/LinkRule.ts
-import type { Node } from 'unist';
 import { visit } from 'unist-util-visit';
-import type { FormatRule, RuleConfig } from '../types';
+import type { FormatRule, RuleConfig, AstNode } from '../types';
 
 /**
  * 链接格式化规则
@@ -17,47 +16,35 @@ export class LinkRule implements FormatRule {
     sortReferenceLinks: false,
   };
 
-  apply(ast: Node, config: RuleConfig): Node {
+  apply(ast: AstNode, config: RuleConfig): AstNode {
     const cfg = { ...this.defaultConfig, ...config };
 
     // 深拷贝AST以避免修改原始对象
-    const clonedAst = JSON.parse(JSON.stringify(ast));
+    const clonedAst = JSON.parse(JSON.stringify(ast)) as AstNode;
 
     // 处理链接节点
-    visit(clonedAst, 'link', (node: Node) => {
-      const linkNode = node as {
-        url?: string;
-        title?: string | null;
-        children?: Node[];
-      };
-
+    visit(clonedAst, 'link', (node: AstNode) => {
       // 确保链接有基本属性
-      if (!linkNode.url) {
-        linkNode.url = '';
+      if (!node.url) {
+        node.url = '';
       }
 
       // 清理title属性（如果为空字符串则设为null）
-      if (linkNode.title === '') {
-        linkNode.title = null;
+      if (node.title === '') {
+        node.title = null;
       }
     });
 
     // 处理图片节点
-    visit(clonedAst, 'image', (node: Node) => {
-      const imageNode = node as {
-        url?: string;
-        title?: string | null;
-        alt?: string;
-      };
-
+    visit(clonedAst, 'image', (node: AstNode) => {
       // 确保图片有基本属性
-      if (!imageNode.url) {
-        imageNode.url = '';
+      if (!node.url) {
+        node.url = '';
       }
 
       // 确保有alt属性
-      if (imageNode.alt === undefined) {
-        imageNode.alt = '';
+      if (node.alt === undefined) {
+        node.alt = '';
       }
     });
 
@@ -72,17 +59,16 @@ export class LinkRule implements FormatRule {
   /**
    * 排序引用链接定义
    */
-  private sortDefinitions(ast: Node): void {
-    const rootNode = ast as { children?: Node[] };
-    if (!rootNode.children || !Array.isArray(rootNode.children)) {
+  private sortDefinitions(ast: AstNode): void {
+    if (!ast.children || !Array.isArray(ast.children)) {
       return;
     }
 
     // 收集所有definition节点
-    const definitions: Node[] = [];
-    const otherChildren: Node[] = [];
+    const definitions: AstNode[] = [];
+    const otherChildren: AstNode[] = [];
 
-    rootNode.children.forEach((child: Node) => {
+    ast.children.forEach((child: AstNode) => {
       if (child.type === 'definition') {
         definitions.push(child);
       } else {
@@ -91,15 +77,13 @@ export class LinkRule implements FormatRule {
     });
 
     // 按标识符排序
-    definitions.sort((a: Node, b: Node) => {
-      const defA = a as { identifier?: string };
-      const defB = b as { identifier?: string };
-      const idA = defA.identifier || '';
-      const idB = defB.identifier || '';
+    definitions.sort((a: AstNode, b: AstNode) => {
+      const idA = a.identifier || '';
+      const idB = b.identifier || '';
       return idA.localeCompare(idB);
     });
 
     // 将排序后的definition放回文档末尾
-    rootNode.children = [...otherChildren, ...definitions];
+    ast.children = [...otherChildren, ...definitions];
   }
 }

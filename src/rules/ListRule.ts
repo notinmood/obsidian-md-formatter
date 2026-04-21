@@ -1,7 +1,6 @@
 // src/rules/ListRule.ts
-import type { Node } from 'unist';
 import { visit } from 'unist-util-visit';
-import type { FormatRule, RuleConfig } from '../types';
+import type { FormatRule, RuleConfig, AstNode } from '../types';
 
 /**
  * 列表格式化规则
@@ -17,30 +16,23 @@ export class ListRule implements FormatRule {
     listItemSpacing: 0,
   };
 
-  apply(ast: Node, config: RuleConfig): Node {
+  apply(ast: AstNode, config: RuleConfig): AstNode {
     const cfg = { ...this.defaultConfig, ...config };
 
     // 深拷贝AST以避免修改原始对象
-    const clonedAst = JSON.parse(JSON.stringify(ast));
+    const clonedAst = JSON.parse(JSON.stringify(ast)) as AstNode;
 
-    visit(clonedAst, 'list', (node: Node) => {
-      const listNode = node as {
-        ordered?: boolean;
-        start?: number;
-        spread?: boolean;
-        children?: Node[];
-      };
-
+    visit(clonedAst, 'list', (node: AstNode) => {
       // 设置列表的spread属性（控制列表项间的空行）
       if (cfg.listItemSpacing > 0) {
-        listNode.spread = true;
+        node.spread = true;
       } else {
-        listNode.spread = false;
+        node.spread = false;
       }
 
       // 处理列表项
-      if (listNode.children && Array.isArray(listNode.children)) {
-        listNode.children.forEach((listItem: Node) => {
+      if (node.children && Array.isArray(node.children)) {
+        node.children.forEach((listItem: AstNode) => {
           this.processListItem(listItem, cfg.indentSize, 0);
         });
       }
@@ -52,27 +44,19 @@ export class ListRule implements FormatRule {
   /**
    * 处理列表项（递归处理嵌套列表）
    */
-  private processListItem(listItem: Node, indentSize: number, depth: number): void {
-    const item = listItem as { children?: Node[] };
-
-    if (!item.children || !Array.isArray(item.children)) {
+  private processListItem(listItem: AstNode, indentSize: number, depth: number): void {
+    if (!listItem.children || !Array.isArray(listItem.children)) {
       return;
     }
 
     // 处理嵌套列表
-    item.children.forEach((child: Node) => {
+    listItem.children.forEach((child: AstNode) => {
       if (child.type === 'list') {
-        const nestedList = child as {
-          ordered?: boolean;
-          spread?: boolean;
-          children?: Node[];
-        };
-
         // 设置嵌套列表的spread属性
-        nestedList.spread = false;
+        child.spread = false;
 
-        if (nestedList.children && Array.isArray(nestedList.children)) {
-          nestedList.children.forEach((nestedItem: Node) => {
+        if (child.children && Array.isArray(child.children)) {
+          child.children.forEach((nestedItem: AstNode) => {
             this.processListItem(nestedItem, indentSize, depth + 1);
           });
         }

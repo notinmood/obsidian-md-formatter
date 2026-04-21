@@ -1,7 +1,6 @@
 // src/rules/CodeBlockRule.ts
-import type { Node } from 'unist';
 import { visit } from 'unist-util-visit';
-import type { FormatRule, RuleConfig } from '../types';
+import type { FormatRule, RuleConfig, AstNode } from '../types';
 
 /**
  * 代码块格式化规则
@@ -18,26 +17,20 @@ export class CodeBlockRule implements FormatRule {
     addLanguageHint: true,
   };
 
-  apply(ast: Node, config: RuleConfig): Node {
+  apply(ast: AstNode, config: RuleConfig): AstNode {
     const cfg = { ...this.defaultConfig, ...config };
 
     // 深拷贝AST以避免修改原始对象
-    const clonedAst = JSON.parse(JSON.stringify(ast));
+    const clonedAst = JSON.parse(JSON.stringify(ast)) as AstNode;
 
-    visit(clonedAst, 'code', (node: Node, index: number | undefined, parent: Node | undefined) => {
+    visit(clonedAst, 'code', (node: AstNode, index: number | undefined, parent: AstNode | undefined) => {
       if (index === undefined || !parent || !parent.children) {
         return;
       }
 
-      const codeNode = node as {
-        lang?: string;
-        meta?: string;
-        value?: string;
-      };
-
       // 自动补全语言标识
-      if (cfg.addLanguageHint && !codeNode.lang) {
-        codeNode.lang = '';
+      if (cfg.addLanguageHint && !node.lang) {
+        node.lang = '';
       }
 
       // 确保代码块前有正确数量的空行
@@ -50,16 +43,15 @@ export class CodeBlockRule implements FormatRule {
   /**
    * 确保节点前有指定数量的空行
    */
-  private ensureBlankLinesBefore(parent: Node, index: number, blankLines: number): void {
-    const parentWithChildren = parent as { children: Node[] };
-    if (!parentWithChildren.children) {
+  private ensureBlankLinesBefore(parent: AstNode, index: number, blankLines: number): void {
+    if (!parent.children) {
       return;
     }
 
     // 计算当前位置前的连续空白节点数
     let blankCount = 0;
     for (let i = index - 1; i >= 0; i--) {
-      const sibling = parentWithChildren.children[i];
+      const sibling = parent.children[i];
       if (isBlankNode(sibling)) {
         blankCount++;
       } else {
@@ -71,7 +63,7 @@ export class CodeBlockRule implements FormatRule {
     if (blankCount < blankLines) {
       const toInsert = blankLines - blankCount;
       for (let i = 0; i < toInsert; i++) {
-        parentWithChildren.children.splice(index, 0, createBlankParagraph());
+        parent.children.splice(index, 0, createBlankParagraph());
       }
     }
   }
@@ -80,17 +72,16 @@ export class CodeBlockRule implements FormatRule {
 /**
  * 检查节点是否为空白
  */
-function isBlankNode(node: Node): boolean {
+function isBlankNode(node: AstNode): boolean {
   if (node.type === 'paragraph') {
-    const paragraph = node as { children?: Node[] };
-    if (!paragraph.children || paragraph.children.length === 0) {
+    if (!node.children || node.children.length === 0) {
       return true;
     }
-    return paragraph.children.every(
-      (child: Node) =>
+    return node.children.every(
+      (child: AstNode) =>
         child.type === 'text' &&
-        typeof (child as { value?: string }).value === 'string' &&
-        (child as { value: string }).value.trim() === ''
+        typeof child.value === 'string' &&
+        (child.value ?? '').trim() === ''
     );
   }
   return false;
@@ -99,7 +90,7 @@ function isBlankNode(node: Node): boolean {
 /**
  * 创建空白段落
  */
-function createBlankParagraph(): Node {
+function createBlankParagraph(): AstNode {
   return {
     type: 'paragraph',
     children: [

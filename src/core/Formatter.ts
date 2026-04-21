@@ -3,7 +3,7 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import type { Node } from 'unist';
-import type { FormatRule, PluginSettings, FormatResult, RuleConfig } from '../types';
+import type { FormatRule, PluginSettings, FormatResult, RuleConfig, AstNode } from '../types';
 import { RuleRegistry } from './RuleRegistry';
 
 /**
@@ -21,16 +21,16 @@ export class Formatter {
 
       const enabledRules = this.getEnabledRules(settings.rules);
 
-      let transformedAst = ast;
+      let transformedAst: Node = ast;
       let rulesApplied = 0;
 
       for (const rule of enabledRules) {
         const ruleConfig = settings.rules[rule.name] || { enabled: true };
-        transformedAst = rule.apply(transformedAst, ruleConfig);
+        transformedAst = rule.apply(transformedAst as unknown as AstNode, ruleConfig) as unknown as Node;
         rulesApplied++;
       }
 
-      const result = processor.stringify(transformedAst);
+      const result = processor.stringify(transformedAst as never);
 
       return {
         success: true,

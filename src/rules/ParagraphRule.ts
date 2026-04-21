@@ -1,7 +1,6 @@
 // src/rules/ParagraphRule.ts
-import type { Node } from 'unist';
 import { visit } from 'unist-util-visit';
-import type { FormatRule, RuleConfig } from '../types';
+import type { FormatRule, RuleConfig, AstNode } from '../types';
 
 /**
  * 段落格式化规则
@@ -17,19 +16,18 @@ export class ParagraphRule implements FormatRule {
     trimTrailingWhitespace: true,
   };
 
-  apply(ast: Node, config: RuleConfig): Node {
+  apply(ast: AstNode, config: RuleConfig): AstNode {
     const cfg = { ...this.defaultConfig, ...config };
 
     // 深拷贝AST以避免修改原始对象
-    const clonedAst = JSON.parse(JSON.stringify(ast));
+    const clonedAst = JSON.parse(JSON.stringify(ast)) as AstNode;
 
     if (cfg.trimTrailingWhitespace) {
       // 清理文本节点中的行尾空白
-      visit(clonedAst, 'text', (node: Node) => {
-        const textNode = node as { value?: string };
-        if (typeof textNode.value === 'string') {
+      visit(clonedAst, 'text', (node: AstNode) => {
+        if (typeof node.value === 'string') {
           // 移除每行尾部的空白字符
-          textNode.value = textNode.value
+          node.value = node.value
             .split('\n')
             .map((line) => line.trimEnd())
             .join('\n');
@@ -39,7 +37,7 @@ export class ParagraphRule implements FormatRule {
 
     // 处理段落间距
     if (cfg.blankLinesBetween > 0 && clonedAst.children && Array.isArray(clonedAst.children)) {
-      const newChildren: Node[] = [];
+      const newChildren: AstNode[] = [];
 
       for (let i = 0; i < clonedAst.children.length; i++) {
         const child = clonedAst.children[i];
@@ -67,7 +65,7 @@ export class ParagraphRule implements FormatRule {
 /**
  * 创建空白段落
  */
-function createBlankParagraph(): Node {
+function createBlankParagraph(): AstNode {
   return {
     type: 'paragraph',
     children: [
