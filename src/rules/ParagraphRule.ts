@@ -12,7 +12,7 @@ export class ParagraphRule implements FormatRule {
   description = '格式化段落：控制段落间空行数，清理行尾空白';
 
   defaultConfig = {
-    blankLinesBetween: 1,
+    blankLinesBetween: 0,  // 默认不添加空行
     trimTrailingWhitespace: true,
   };
 

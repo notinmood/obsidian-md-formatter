@@ -21,7 +21,7 @@ describe('ParagraphRule', () => {
 
     it('应该有正确的默认配置', () => {
       expect(rule.defaultConfig).toEqual({
-        blankLinesBetween: 1,
+        blankLinesBetween: 0,
         trimTrailingWhitespace: true,
       });
     });
