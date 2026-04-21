@@ -39,10 +39,11 @@ The plugin follows a layered architecture:
 - `FileProcessor.ts`: Handles large file chunking (by Markdown boundaries like headings/code blocks) and encoding detection
 
 **Rules Layer** (`src/rules/`)
-- Each rule implements `FormatRule` interface: `{ name, priority, description, defaultConfig, apply(ast, config) }`
+- Each rule implements `FormatRule` interface: `{ name, priority, description, defaultConfig, apply(ast, config, filename?) }`
 - Rules transform the remark AST using `unist-util-visit` for traversal
-- Built-in rules (priority order): Heading(10), Paragraph(20), List(30), CodeBlock(40), Table(50), Link(60)
+- Built-in rules (priority order): Frontmatter(5), Heading(10), Paragraph(20), List(30), CodeBlock(40), Table(50), Link(60)
 - Register new rules via `registerBuiltinRules()` in `index.ts`
+- **FrontmatterRule**: Normalizes YAML frontmatter field names (create→created, update→updated, tag→tags), adds title from filename if missing
 
 **UI Layer** (`src/ui/SettingsTab.ts`)
 - Obsidian settings panel for file thresholds, encoding options, and rule toggles
@@ -68,3 +69,19 @@ The plugin follows a layered architecture:
 ## Testing
 
 Tests mirror source structure under `tests/`. Jest with ts-jest preset, ES modules mode. Coverage excludes `src/main.ts`.
+
+## Key Dependencies
+
+- `yaml`: YAML parsing and stringifying for frontmatter processing
+- `remark-frontmatter`: Plugin for handling YAML frontmatter in remark
+- `jschardet`: Encoding detection for file processing
+
+## Remote Repositories
+
+- Gitee: https://gitee.com/xiedali/obsidian-md-formatter.git (origin)
+- GitHub: https://github.com/xiedali/obsidian-md-formatter.git (github)
+
+## Current Version
+
+- Version: 1.0.5 (see manifest.json and package.json)
+- Min App Version: 1.0.0
