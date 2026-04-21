@@ -1,0 +1,31 @@
+{
+  "name": "obsidian-md-formatter",
+  "version": "1.0.0",
+  "description": "Markdown formatter plugin for Obsidian",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs --production",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "keywords": ["obsidian", "markdown", "formatter"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.20.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "jschardet": "^3.0.0",
+    "remark": "^15.0.1",
+    "remark-stringify": "^11.0.0",
+    "unified": "^11.0.4",
+    "unist-util-visit": "^5.0.0"
+  }
+}
