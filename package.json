@@ -6,10 +6,14 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs --production",
-    "test": "jest",
-    "test:watch": "jest --watch"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
   },
-  "keywords": ["obsidian", "markdown", "formatter"],
+  "keywords": [
+    "obsidian",
+    "markdown",
+    "formatter"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -24,7 +28,9 @@
   "dependencies": {
     "jschardet": "^3.0.0",
     "remark": "^15.0.1",
+    "remark-parse": "^11.0.0",
     "remark-stringify": "^11.0.0",
+    "tslib": "^2.8.1",
     "unified": "^11.0.4",
     "unist-util-visit": "^5.0.0"
   }
