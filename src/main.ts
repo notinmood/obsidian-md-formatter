@@ -39,7 +39,7 @@ export default class MarkdownFormatterPlugin extends Plugin {
     this.addCommand({
       id: 'format-current-file',
       name: '格式化当前文件',
-      hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'f' }],
+      hotkeys: [{ modifiers: ['Alt'], key: 'f' }],
       editorCallback: async (editor: Editor, view: MarkdownView) => {
         await this.formatCurrentFile(editor, view);
       },
