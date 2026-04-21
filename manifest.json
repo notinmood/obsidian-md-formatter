@@ -1,7 +1,7 @@
 {
   "id": "obsidian-md-formatter",
   "name": "Markdown Formatter",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "minAppVersion": "1.0.0",
   "description": "Format Markdown files in Obsidian with customizable rules",
   "author": "",
