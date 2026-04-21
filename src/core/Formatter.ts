@@ -2,6 +2,7 @@
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
+import remarkFrontmatter from 'remark-frontmatter';
 import type { Node } from 'unist';
 import type { FormatRule, PluginSettings, FormatResult, RuleConfig, AstNode } from '../types';
 import { RuleRegistry } from './RuleRegistry';
@@ -18,9 +19,11 @@ export class Formatter {
       // 使用 unified 处理器
       const processor = unified()
         .use(remarkParse)
+        .use(remarkFrontmatter, ['yaml'])  // 支持 YAML frontmatter
         .use(remarkStringify, {
           bullet: '-',  // 无序列表使用 - 标记
-        });
+        })
+        .use(remarkFrontmatter, ['yaml']);  // stringify 时也需要 frontmatter 支持
       const ast = processor.parse(content);
 
       const enabledRules = this.getEnabledRules(settings.rules);

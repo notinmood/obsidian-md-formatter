@@ -139,5 +139,24 @@ describe('Formatter', () => {
       const nextNonEmpty = lines.slice(p1Index + 1).find(line => line.trim() !== '');
       expect(nextNonEmpty).toContain('Paragraph 2');
     });
+
+    it('应该正确保留 YAML frontmatter 使用 --- 标记', async () => {
+      const input = '---\nupdate: 2026-04-21 18:12:48 星期二\n---\n\n# Title';
+      const settings: PluginSettings = {
+        fileSizeThreshold: 500,
+        chunkSize: 100,
+        autoDetectEncoding: true,
+        fallbackEncoding: 'utf-8',
+        rules: {},
+      };
+
+      const result = await formatter.format(input, settings);
+      expect(result.success).toBe(true);
+      // frontmatter 应该以 --- 开始和结束
+      expect(result.content).toMatch(/^---\n/);
+      expect(result.content).toContain('\n---\n');
+      // 内容应该保留
+      expect(result.content).toContain('update: 2026-04-21 18:12:48 星期二');
+    });
   });
 });
