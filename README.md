@@ -144,6 +144,7 @@ obsidian-md-formatter/
 ## 参考资料
 
 - [微软 Markdown 最佳做法](https://learn.microsoft.com/zh-cn/powershell/scripting/community/contributing/general-markdown?view=powershell-7.6)
+- [MarkDownLint的规则文档](https://github.com/DavidAnson/markdownlint/tree/main/doc）
 
 ## 许可证
 
