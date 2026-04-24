@@ -41,15 +41,16 @@
    - 字段名规范化（create→created, update→updated, tag→tags）— 保留现有功能
    - `created`：如果缺失，从 fileInfo.ctime 生成，格式 `YYYY-MM-DD HH:mm:ss 星期x`
    - `updated`：每次格式化更新为当前时间，格式同上
-   - 时间标签：从 created 日期推算，确保 tags 中包含 `Year/YYYY` 和 `Month/MM`，已有则跳过
+   - AI 可用时：覆盖 tags 字段，内容为 `Year/YYYY` + `Month/MM` + AI 生成的二级格式 tags
+- AI 不可用时：不改动 tags 中其他标签，只确保 `Year/YYYY` 和 `Month/MM` 存在
    - 如果没有 title，用 filename 填充 — 保留现有功能
    - 保留其他所有已有字段不变
 3. **AI 逻辑**（aiService 可用时执行）：
    - 提取正文内容（去掉 frontmatter 部分）传给 AIService
-   - AI 生成 tags（二级格式 `类别/具体实体`），追加到现有 tags（不替换）
+   - AI 生成 tags（二级格式 `类别/具体实体`），覆盖已有 tags 字段，内容为 `Year/YYYY` + `Month/MM` + AI 生成的二级格式 tags
    - AI 生成 summary，如果已有 summary 则不覆盖
    - AI 生成 categories（二级格式，可多个），覆盖已有 categories 字段（AI 重新分析后的分类替换原有）
-   - AI 不可用时跳过这些字段，其余照常
+   - AI 不可用时：不改动 tags 中其他标签，只确保 `Year/YYYY` 和 `Month/MM` 存在
 4. 重建 YAML 字符串替换 AST 中 yaml 节点
 
 ### 2. AI 服务层
@@ -154,11 +155,12 @@ class Formatter {
 
 ### 8. 时间标签规则
 
-从 created 日期推算：
+从 created 日期推算，始终确保 tags 中包含：
 - `Year/YYYY`：如 `Year/2026`
 - `Month/MM`：如 `Month/04`
 
-如果 tags 中已有这些标签则跳过，没有则追加。
+**AI 可用时**：覆盖 tags 字段，内容为 `Year/YYYY` + `Month/MM` + AI 生成的二级格式 tags。
+**AI 不可用时**：不改动 tags 中其他标签，只确保 `Year/YYYY` 和 `Month/MM` 存在（已有则跳过，没有则追加）。
 
 ### 9. AI 提示词设计
 
@@ -175,7 +177,8 @@ class Formatter {
 - 确定性逻辑（时间字段、时间标签、字段规范化）始终执行，不受 AI 配置影响
 - AI 逻辑在 AI 未配置或不可用时自动跳过，不影响确定性逻辑执行
 - 保留 frontmatter 中所有其他已有字段不变
-- AI 生成的 tags 追加到现有 tags，不替换已有的
+- AI 可用时：覆盖 tags 字段，内容为 `Year/YYYY` + `Month/MM` + AI 生成的二级格式 tags
+- AI 不可用时：不改动 tags 中其他标签，只确保 `Year/YYYY` 和 `Month/MM` 存在
 - AI 生成的 summary 如果已有则不覆盖
 - AI 生成的 categories 覆盖已有 categories 字段（AI 重新分析后的分类替换原有）
 - 格式化命令触发时 updated 字段始终更新为当前时间
