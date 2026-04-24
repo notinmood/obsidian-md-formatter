@@ -1,5 +1,5 @@
 // src/core/FileProcessor.ts
-import type { PluginSettings, FormatResult, ProgressCallback } from '../types';
+import type { PluginSettings, FormatResult, ProgressCallback, FileInfo } from '../types';
 import { Formatter } from './Formatter';
 
 /**
@@ -16,16 +16,17 @@ export class FileProcessor {
     content: string,
     settings: PluginSettings,
     progressCallback?: ProgressCallback,
-    filename?: string
+    filename?: string,
+    fileInfo?: FileInfo
   ): Promise<FormatResult> {
     try {
       // 检查是否需要分块处理
       if (this.shouldChunkFile(content, settings)) {
-        return await this.processChunked(content, settings, progressCallback, filename);
+        return await this.processChunked(content, settings, progressCallback, filename, fileInfo);
       }
 
       // 直接处理
-      return await this.formatter.format(content, settings, { filename });
+      return await this.formatter.format(content, settings, { filename, fileInfo });
     } catch (error) {
       return {
         success: false,
@@ -49,7 +50,8 @@ export class FileProcessor {
     content: string,
     settings: PluginSettings,
     progressCallback?: ProgressCallback,
-    filename?: string
+    filename?: string,
+    fileInfo?: FileInfo
   ): Promise<FormatResult> {
     // 按Markdown结构边界分块
     const chunks = this.splitByMarkdownBoundary(content, settings.chunkSize * 1024);
@@ -64,9 +66,10 @@ export class FileProcessor {
         });
       }
 
-      // 只有第一个分块传入 filename（用于添加一级标题）
+      // 只有第一个分块传入 filename 和 fileInfo（用于添加一级标题和文件信息）
       const chunkFilename = i === 0 ? filename : undefined;
-      const result = await this.formatter.format(chunks[i], settings, { filename: chunkFilename });
+      const chunkFileInfo = i === 0 ? fileInfo : undefined;
+      const result = await this.formatter.format(chunks[i], settings, { filename: chunkFilename, fileInfo: chunkFileInfo });
       if (!result.success) {
         return result;
       }

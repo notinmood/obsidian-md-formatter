@@ -4,7 +4,7 @@ import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import remarkFrontmatter from 'remark-frontmatter';
 import type { Node } from 'unist';
-import type { FormatRule, PluginSettings, FormatResult, RuleConfig, AstNode } from '../types';
+import type { FormatRule, PluginSettings, FormatResult, RuleConfig, AstNode, FileInfo, AIService } from '../types';
 import { RuleRegistry } from './RuleRegistry';
 
 /**
@@ -13,6 +13,8 @@ import { RuleRegistry } from './RuleRegistry';
 export interface FormatOptions {
   /** 文件名（用于生成一级标题） */
   filename?: string;
+  /** 文件信息（创建时间、修改时间等） */
+  fileInfo?: FileInfo;
 }
 
 /**
@@ -20,7 +22,15 @@ export interface FormatOptions {
  * 负责解析Markdown、应用规则、生成格式化结果
  */
 export class Formatter {
-  constructor(private registry: RuleRegistry) {}
+  private aiService?: AIService;
+
+  constructor(private registry: RuleRegistry, aiService?: AIService) {
+    this.aiService = aiService;
+  }
+
+  setAIService(aiService?: AIService): void {
+    this.aiService = aiService;
+  }
 
   async format(content: string, settings: PluginSettings, options?: FormatOptions): Promise<FormatResult> {
     try {
@@ -48,7 +58,13 @@ export class Formatter {
 
       for (const rule of enabledRules) {
         const ruleConfig = settings.rules[rule.name] || { enabled: true };
-        transformedAst = (await rule.apply(transformedAst as unknown as AstNode, ruleConfig, options?.filename)) as unknown as Node;
+        transformedAst = (await rule.apply(
+          transformedAst as unknown as AstNode,
+          ruleConfig,
+          options?.filename,
+          options?.fileInfo,
+          this.aiService
+        )) as unknown as Node;
         rulesApplied++;
       }
 
