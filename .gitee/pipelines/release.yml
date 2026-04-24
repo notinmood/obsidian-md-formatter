@@ -1,0 +1,30 @@
+name: Release Obsidian plugin
+displayName: 自动发布插件
+
+triggers:
+  push:
+    tags:
+      include:
+        - v*
+
+stages:
+  - name: build
+    displayName: 构建插件
+    tasks:
+      - task: node@18
+        inputs:
+          commands: |
+            npm install
+            npm run build
+
+  - name: release
+    displayName: 创建发布
+    tasks:
+      - task: gitee-release@1
+        inputs:
+          tag: ${GITEE_REF_NAME}
+          title: ${GITEE_REF_NAME}
+          files:
+            - main.js
+            - manifest.json
+            - styles.css
