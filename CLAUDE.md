@@ -39,19 +39,29 @@ The plugin follows a layered architecture:
 - `FileProcessor.ts`: Handles large file chunking (by Markdown boundaries like headings/code blocks) and encoding detection
 
 **Rules Layer** (`src/rules/`)
-- Each rule implements `FormatRule` interface: `{ name, priority, description, defaultConfig, apply(ast, config, filename?) }`
+- Each rule implements `FormatRule` interface: `{ name, priority, description, defaultConfig, apply(ast, config, filename?, fileInfo?, aiService?) }`
+- `apply` returns `Promise<AstNode> | AstNode` (async for rules that call AI)
 - Rules transform the remark AST using `unist-util-visit` for traversal
 - Built-in rules (priority order): Frontmatter(5), Heading(10), Paragraph(20), List(30), CodeBlock(40), Table(50), Link(60)
 - Register new rules via `registerBuiltinRules()` in `index.ts`
-- **FrontmatterRule**: Normalizes YAML frontmatter field names (create→created, update→updated, tag→tags), adds title from filename if missing
+- **FrontmatterRule**: Two-phase logic:
+  - **Deterministic (always runs)**: field name normalization (create→created, update→updated, tag→tags), auto-fill `created` from file ctime if missing, always update `updated` to current time, ensure time tags (Year/YYYY, Month/MM) exist in tags, add title from filename if missing, preserve all other frontmatter fields
+  - **AI (runs when AIService available)**: generate content tags (two-level format like 科技/AI), summary (don't overwrite existing), categories (overwrite). When AI unavailable, skip these fields and only ensure time tags exist
+
+**Services Layer** (`src/services/`)
+- `AIService.ts`: AIServiceImpl implements AIService interface, calls OpenAI-compatible /chat/completions API via Obsidian requestUrl, supports multiple providers with failover (tries providers in order, returns null if all fail)
 
 **UI Layer** (`src/ui/SettingsTab.ts`)
-- Obsidian settings panel for file thresholds, encoding options, and rule toggles
+- Obsidian settings panel for file thresholds, encoding options, AI frontmatter config (provider management with failover), and rule toggles
 
 **Type Definitions** (`src/types/index.ts`)
 - `AstNode`: Extended remark AST node type with all Markdown-specific properties
-- `FormatRule`: Rule interface with `apply()` method that transforms AST
-- `PluginSettings`: Configuration including `fileSizeThreshold`, `chunkSize`, `rules` map
+- `FormatRule`: Rule interface with `apply()` method (supports async, fileInfo, aiService params)
+- `PluginSettings`: Configuration including `fileSizeThreshold`, `chunkSize`, `rules` map, `aiFrontmatter` (AIFrontmatterConfig)
+- `AIFrontmatterConfig`: AI provider list, maxTags, maxCategories, customPrompt, enabled toggle
+- `AIProviderConfig`: name, baseUrl, apiKey, model, temperature, maxTokens
+- `FileInfo`: ctime and mtime timestamps from Obsidian vault adapter
+- `AIService`: Interface for AI metadata generation
 
 ## Key Patterns
 
@@ -59,7 +69,9 @@ The plugin follows a layered architecture:
 
 **Chunked Processing**: Large files (>fileSizeThreshold KB) are split by Markdown structural boundaries (headings, code blocks) to preserve document structure.
 
-**Rule Configuration**: Each rule has `defaultConfig` and receives `RuleConfig` (with `enabled` flag plus rule-specific options) at runtime.
+**Rule Configuration**: Each rule has `defaultConfig` and receives `RuleConfig` (with `enabled` flag plus rule-specific options) at runtime. Rules can receive `FileInfo` (file timestamps) and `AIService` (AI metadata generation) as optional parameters.
+
+**AI Service**: AIServiceImpl wraps OpenAI-compatible API calls with multi-provider failover. Uses Obsidian `requestUrl` (not fetch, which is blocked in plugin sandbox). Disabled by default — user must configure providers in settings.
 
 ## Build Output
 
@@ -81,7 +93,11 @@ Tests mirror source structure under `tests/`. Jest with ts-jest preset, ES modul
 - Gitee: https://gitee.com/xiedali/obsidian-md-formatter.git (origin)
 - GitHub: https://github.com/xiedali/obsidian-md-formatter.git (github)
 
+## Cursor Preservation
+
+Format current file uses `editor.transaction()` instead of `editor.setValue()`, preserving cursor position and enabling single Ctrl+Z undo of the entire formatting operation.
+
 ## Current Version
 
-- Version: 1.0.5 (see manifest.json and package.json)
+- Version: 1.0.6 (see manifest.json and package.json)
 - Min App Version: 1.0.0
