@@ -10,6 +10,7 @@ const config = {
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^obsidian$': '<rootDir>/__mocks__/obsidian.ts',
   },
   transformIgnorePatterns: [],
 };
