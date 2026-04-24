@@ -75,6 +75,8 @@ export default class MarkdownFormatterPlugin extends Plugin {
     }
 
     const content = editor.getValue();
+    const cursor = editor.getCursor();
+
     showNotice('正在格式化...');
 
     const progressCallback = this.processor.shouldChunkFile(content, this.settings)
@@ -84,7 +86,15 @@ export default class MarkdownFormatterPlugin extends Plugin {
     const result = await this.processor.processContent(content, this.settings, progressCallback, file.basename);
 
     if (result.success && result.content) {
-      editor.setValue(result.content);
+      const currentContent = editor.getValue();
+      editor.transaction({
+        changes: [{
+          from: { line: 0, ch: 0 },
+          to: editor.offsetToPos(currentContent.length),
+          text: result.content,
+        }],
+        selection: { from: cursor, to: cursor },
+      });
       showNotice(`格式化完成，应用了 ${result.stats?.rulesApplied || 0} 条规则`);
     } else {
       showNotice(`格式化失败: ${result.error || '未知错误'}`);
