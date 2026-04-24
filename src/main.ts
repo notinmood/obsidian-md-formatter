@@ -7,6 +7,7 @@ import { FileProcessor } from './core/FileProcessor';
 import { registerBuiltinRules } from './rules';
 import { SettingsTab } from './ui/SettingsTab';
 import { showNotice, createProgressCallback } from './utils/notice';
+import { AIServiceImpl } from './services';
 
 export default class MarkdownFormatterPlugin extends Plugin {
   settings: PluginSettings = DEFAULT_SETTINGS;
@@ -18,17 +19,27 @@ export default class MarkdownFormatterPlugin extends Plugin {
     // 初始化核心组件
     this.registry = new RuleRegistry();
     registerBuiltinRules(this.registry);
-    this.formatter = new Formatter(this.registry);
-    this.processor = new FileProcessor(this.formatter);
 
     // 加载设置
     await this.loadSettings();
+
+    // 初始化 Formatter（需要先加载设置以创建 AIService）
+    this.formatter = new Formatter(this.registry, this.createAIService());
+    this.processor = new FileProcessor(this.formatter);
 
     // 注册命令
     this.registerCommands();
 
     // 注册设置面板
     this.addSettingTab(new SettingsTab(this.app, this));
+  }
+
+  private createAIService(): AIServiceImpl | undefined {
+    const aiConfig = this.settings.aiFrontmatter;
+    if (!aiConfig.enabled || aiConfig.providers.length === 0) {
+      return undefined;
+    }
+    return new AIServiceImpl(aiConfig);
   }
 
   /**
@@ -83,7 +94,10 @@ export default class MarkdownFormatterPlugin extends Plugin {
       ? createProgressCallback()
       : undefined;
 
-    const result = await this.processor.processContent(content, this.settings, progressCallback, file.basename);
+    const stat = await this.app.vault.adapter.stat(file.path);
+    const fileInfo = stat ? { ctime: stat.ctime, mtime: stat.mtime } : undefined;
+
+    const result = await this.processor.processContent(content, this.settings, progressCallback, file.basename, fileInfo);
 
     if (result.success && result.content) {
       const currentContent = editor.getValue();
@@ -137,7 +151,9 @@ export default class MarkdownFormatterPlugin extends Plugin {
     for (const file of mdFiles) {
       try {
         const content = await this.app.vault.read(file);
-        const result = await this.processor.processContent(content, this.settings, undefined, file.basename);
+        const stat = await this.app.vault.adapter.stat(file.path);
+        const fileInfo = stat ? { ctime: stat.ctime, mtime: stat.mtime } : undefined;
+        const result = await this.processor.processContent(content, this.settings, undefined, file.basename, fileInfo);
 
         if (result.success && result.content && result.content !== content) {
           await this.app.vault.modify(file, result.content);
@@ -164,6 +180,7 @@ export default class MarkdownFormatterPlugin extends Plugin {
    */
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+    this.formatter.setAIService(this.createAIService());
   }
 
   onunload() {
