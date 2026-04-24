@@ -48,7 +48,7 @@
    - 提取正文内容（去掉 frontmatter 部分）传给 AIService
    - AI 生成 tags（二级格式 `类别/具体实体`），追加到现有 tags（不替换）
    - AI 生成 summary，如果已有 summary 则不覆盖
-   - AI 生成 categories（二级格式，可多个），写入 `categories` 字段（数组）
+   - AI 生成 categories（二级格式，可多个），覆盖已有 categories 字段（AI 重新分析后的分类替换原有）
    - AI 不可用时跳过这些字段，其余照常
 4. 重建 YAML 字符串替换 AST 中 yaml 节点
 
@@ -177,4 +177,5 @@ class Formatter {
 - 保留 frontmatter 中所有其他已有字段不变
 - AI 生成的 tags 追加到现有 tags，不替换已有的
 - AI 生成的 summary 如果已有则不覆盖
+- AI 生成的 categories 覆盖已有 categories 字段（AI 重新分析后的分类替换原有）
 - 格式化命令触发时 updated 字段始终更新为当前时间
