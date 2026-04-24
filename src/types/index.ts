@@ -43,7 +43,7 @@ export interface FormatRule {
   /** 默认配置 */
   defaultConfig: Record<string, unknown>;
   /** 应用规则转换AST */
-  apply(ast: AstNode, config: RuleConfig, filename?: string): AstNode;
+  apply(ast: AstNode, config: RuleConfig, filename?: string, fileInfo?: FileInfo, aiService?: AIService): Promise<AstNode> | AstNode;
 }
 
 /**
@@ -68,6 +68,8 @@ export interface PluginSettings {
   fallbackEncoding: string;
   /** 规则配置 */
   rules: Record<string, RuleConfig>;
+  /** AI frontmatter 配置 */
+  aiFrontmatter: AIFrontmatterConfig;
 }
 
 /**
@@ -79,6 +81,13 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   autoDetectEncoding: true,
   fallbackEncoding: 'utf-8',
   rules: {},
+  aiFrontmatter: {
+    enabled: false,
+    providers: [],
+    maxTags: 5,
+    maxCategories: 3,
+    customPrompt: '',
+  },
 };
 
 /**
@@ -107,3 +116,35 @@ export interface Progress {
  * 进度回调
  */
 export type ProgressCallback = (progress: Progress) => void;
+
+export interface AIProviderConfig {
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+}
+
+export interface AIFrontmatterConfig {
+  enabled: boolean;
+  providers: AIProviderConfig[];
+  maxTags: number;
+  maxCategories: number;
+  customPrompt: string;
+}
+
+export interface FileInfo {
+  ctime: number;
+  mtime: number;
+}
+
+export interface AIMetadataResult {
+  tags: string[];
+  summary: string;
+  categories: string[];
+}
+
+export interface AIService {
+  generateMetadata(content: string, createdDate: string, existingTags: string[]): Promise<AIMetadataResult | null>;
+}
