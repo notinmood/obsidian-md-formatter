@@ -48,7 +48,7 @@ export class Formatter {
 
       for (const rule of enabledRules) {
         const ruleConfig = settings.rules[rule.name] || { enabled: true };
-        transformedAst = rule.apply(transformedAst as unknown as AstNode, ruleConfig, options?.filename) as unknown as Node;
+        transformedAst = (await rule.apply(transformedAst as unknown as AstNode, ruleConfig, options?.filename)) as unknown as Node;
         rulesApplied++;
       }
 

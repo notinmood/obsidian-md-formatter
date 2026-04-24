@@ -30,131 +30,130 @@ describe('FrontmatterRule', () => {
   });
 
   describe('apply方法', () => {
-    it('应该能正确处理包含 frontmatter 的文档', () => {
+    it('应该能正确处理包含 frontmatter 的文档', async () => {
       const content = '---\ntitle: Test\n---\n\n# Heading';
       const processor = unified().use(remarkParse).use(remarkFrontmatter).use(remarkStringify);
       const ast = processor.parse(content);
 
-      const result = rule.apply(ast, { enabled: true });
+      const result = await rule.apply(ast, { enabled: true });
 
       expect(result).toBeDefined();
       expect(result.type).toBe('root');
     });
 
-    it('应该能处理没有 frontmatter 的文档', () => {
+    it('应该能处理没有 frontmatter 的文档', async () => {
       const content = '# Just a heading\n\nParagraph';
       const processor = unified().use(remarkParse);
       const ast = processor.parse(content);
 
-      const result = rule.apply(ast, { enabled: true });
+      const result = await rule.apply(ast, { enabled: true });
 
       expect(result).toBeDefined();
     });
 
-    it('应该能处理空文档', () => {
+    it('应该能处理空文档', async () => {
       const content = '';
       const processor = unified().use(remarkParse);
       const ast = processor.parse(content);
 
-      const result = rule.apply(ast, { enabled: true });
+      const result = await rule.apply(ast, { enabled: true });
 
       expect(result).toBeDefined();
     });
   });
 
   describe('字段名规范化', () => {
-    it('应该将 create 改为 created', () => {
+    it('应该将 create 改为 created', async () => {
       const content = '---\ncreate: 2026-04-21\n---\n\n# Heading';
       const processor = unified().use(remarkParse).use(remarkFrontmatter);
       const ast = processor.parse(content);
 
-      const result = rule.apply(ast, { enabled: true });
+      const result = await rule.apply(ast, { enabled: true });
 
       const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
       expect(yamlNode?.value).toContain('created: 2026-04-21');
       expect(yamlNode?.value).not.toContain('create:');
     });
 
-    it('应该将 update 改为 updated', () => {
+    it('应该将 update 改为 updated', async () => {
       const content = '---\nupdate: 2026-04-21\n---\n\n# Heading';
       const processor = unified().use(remarkParse).use(remarkFrontmatter);
       const ast = processor.parse(content);
 
-      const result = rule.apply(ast, { enabled: true });
+      const result = await rule.apply(ast, { enabled: true });
 
       const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
-      expect(yamlNode?.value).toContain('updated: 2026-04-21');
+      expect(yamlNode?.value).toContain('updated:');
       expect(yamlNode?.value).not.toContain('update:');
     });
 
-    it('应该将 tag 改为 tags', () => {
+    it('应该将 tag 改为 tags', async () => {
       const content = '---\ntag:\n  - test\n---\n\n# Heading';
       const processor = unified().use(remarkParse).use(remarkFrontmatter);
       const ast = processor.parse(content);
 
-      const result = rule.apply(ast, { enabled: true });
+      const result = await rule.apply(ast, { enabled: true });
 
       const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
       expect(yamlNode?.value).toContain('tags:');
       expect(yamlNode?.value).not.toMatch(/^tag:/m);
     });
 
-    it('应该不覆盖已存在的目标字段', () => {
+    it('应该不覆盖已存在的目标字段', async () => {
       const content = '---\ncreate: old-value\ncreated: existing-value\n---\n\n# Heading';
       const processor = unified().use(remarkParse).use(remarkFrontmatter);
       const ast = processor.parse(content);
 
-      const result = rule.apply(ast, { enabled: true });
+      const result = await rule.apply(ast, { enabled: true });
 
       const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
       // created 已存在，不应被 create 覆盖
       expect(yamlNode?.value).toContain('created: existing-value');
     });
 
-    it('应该同时处理多个字段重命名', () => {
+    it('应该同时处理多个字段重命名', async () => {
       const content = '---\ncreate: 2026-04-01\nupdate: 2026-04-21\ntag:\n  - test\n---\n\n# Heading';
       const processor = unified().use(remarkParse).use(remarkFrontmatter);
       const ast = processor.parse(content);
 
-      const result = rule.apply(ast, { enabled: true });
+      const result = await rule.apply(ast, { enabled: true });
 
       const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
       expect(yamlNode?.value).toContain('created: 2026-04-01');
-      expect(yamlNode?.value).toContain('updated: 2026-04-21');
       expect(yamlNode?.value).toContain('tags:');
     });
   });
 
   describe('添加 title 字段', () => {
-    it('没有 title 时应该用文件名作为 title', () => {
+    it('没有 title 时应该用文件名作为 title', async () => {
       const content = '---\ncreated: 2026-04-21\n---\n\n# Heading';
       const processor = unified().use(remarkParse).use(remarkFrontmatter);
       const ast = processor.parse(content);
 
-      const result = rule.apply(ast, { enabled: true }, 'MyDocument');
+      const result = await rule.apply(ast, { enabled: true }, 'MyDocument');
 
       const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
       expect(yamlNode?.value).toContain('title: MyDocument');
     });
 
-    it('已有 title 时不应该覆盖', () => {
+    it('已有 title 时不应该覆盖', async () => {
       const content = '---\ntitle: Existing Title\n---\n\n# Heading';
       const processor = unified().use(remarkParse).use(remarkFrontmatter);
       const ast = processor.parse(content);
 
-      const result = rule.apply(ast, { enabled: true }, 'MyDocument');
+      const result = await rule.apply(ast, { enabled: true }, 'MyDocument');
 
       const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
       expect(yamlNode?.value).toContain('title: Existing Title');
       expect(yamlNode?.value).not.toContain('MyDocument');
     });
 
-    it('没有 frontmatter 时不添加 title', () => {
+    it('没有 frontmatter 时不添加 title', async () => {
       const content = '# Heading\n\nContent';
       const processor = unified().use(remarkParse).use(remarkFrontmatter);
       const ast = processor.parse(content);
 
-      const result = rule.apply(ast, { enabled: true }, 'MyDocument');
+      const result = await rule.apply(ast, { enabled: true }, 'MyDocument');
 
       // 没有 YAML 节点
       const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
@@ -163,15 +162,115 @@ describe('FrontmatterRule', () => {
   });
 
   describe('禁用规范化', () => {
-    it('禁用 normalizeFields 时不应修改字段名', () => {
+    it('禁用 normalizeFields 时不应修改字段名', async () => {
       const content = '---\ncreate: 2026-04-21\n---\n\n# Heading';
       const processor = unified().use(remarkParse).use(remarkFrontmatter);
       const ast = processor.parse(content);
 
-      const result = rule.apply(ast, { enabled: true, normalizeFields: false });
+      const result = await rule.apply(ast, { enabled: true, normalizeFields: false });
 
       const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
       expect(yamlNode?.value).toContain('create: 2026-04-21');
     });
+  });
+});
+
+describe('时间字段', () => {
+  let rule: FrontmatterRule;
+  const fileInfo = { ctime: new Date('2026-04-24T14:30:00').getTime(), mtime: new Date('2026-04-21T10:00:00').getTime() };
+
+  beforeEach(() => {
+    rule = new FrontmatterRule();
+  });
+
+  it('应该在缺少 created 时从 fileInfo.ctime 生成', async () => {
+    const content = '---\ntitle: Test\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true }, 'Test', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).toContain('created:');
+    expect(yamlNode?.value).toContain('2026-04-24');
+  });
+
+  it('应该始终更新 updated 为当前时间', async () => {
+    const content = '---\ncreated: 2026-04-21\nupdated: 2026-04-21\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true }, 'Test', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).toContain('updated:');
+    expect(yamlNode?.value).not.toContain('updated: 2026-04-21');
+  });
+
+  it('已有 created 时不应覆盖', async () => {
+    const content = '---\ncreated: 2026-03-15 08:00:00 星期六\ntitle: Test\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true }, 'Test', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).toContain('created: 2026-03-15 08:00:00 星期六');
+  });
+
+  it('没有 fileInfo 时不添加时间字段', async () => {
+    const content = '---\ntitle: Test\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true }, 'Test');
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).not.toContain('created:');
+  });
+});
+
+describe('时间标签', () => {
+  let rule: FrontmatterRule;
+  const fileInfo = { ctime: new Date('2026-04-24T14:30:00').getTime(), mtime: new Date('2026-04-21T10:00:00').getTime() };
+
+  beforeEach(() => {
+    rule = new FrontmatterRule();
+  });
+
+  it('应该在 tags 中包含 Year/2026 和 Month/04（基于 created 日期）', async () => {
+    const content = '---\ncreated: 2026-04-24 14:30:00 星期四\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true }, 'Test', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).toContain('Year/2026');
+    expect(yamlNode?.value).toContain('Month/04');
+  });
+
+  it('应该从 fileInfo.ctime 推算时间标签（如果没有 created 字段）', async () => {
+    const content = '---\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true }, 'Test', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).toContain('Year/2026');
+    expect(yamlNode?.value).toContain('Month/04');
+  });
+
+  it('已有时间标签时不应重复添加', async () => {
+    const content = '---\ncreated: 2026-04-24\ntags:\n  - Year/2026\n  - Month/04\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true }, 'Test', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    const yearCount = (yamlNode?.value as string).split('Year/2026').length - 1;
+    expect(yearCount).toBe(1);
   });
 });
