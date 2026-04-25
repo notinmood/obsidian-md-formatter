@@ -1,8 +1,39 @@
 // src/ui/SettingsTab.ts
 import { App, PluginSettingTab, Setting } from 'obsidian';
-import type { PluginSettings, RuleConfig, AIProviderConfig, FrontmatterConfig } from '../types';
-import { DEFAULT_SETTINGS } from '../types';
+import type { PluginSettings, RuleConfig, AIProviderConfig } from '../types';
+import { DEFAULT_SETTINGS, DEFAULT_SUBRULES } from '../types';
 import type MarkdownFormatterPlugin from '../main';
+
+const COLLAPSIBLE_STYLES = `
+  .md-formatter-collapsible { margin-bottom: 8px; }
+  .md-formatter-collapsible > summary {
+    cursor: pointer; list-style: none;
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 4px; padding: 4px 8px; border-radius: 4px;
+    background: var(--background-secondary);
+  }
+  .md-formatter-collapsible > summary .title { font-weight: 500; }
+  .md-formatter-collapsible > summary .desc {
+    font-size: 12px; color: var(--text-muted); margin-left: auto;
+  }
+  .md-formatter-collapsible-content {
+    padding-left: 24px;
+    border-left: 2px solid var(--background-modifier-border);
+    margin-top: 4px;
+  }
+  .md-formatter-provider-header {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .md-formatter-provider-header .badge {
+    font-size: 11px; color: var(--text-on-accent); background: var(--interactive-accent);
+    padding: 1px 6px; border-radius: 3px;
+  }
+  .md-formatter-provider-actions {
+    margin-left: auto; display: flex; gap: 4px;
+  }
+`;
+
+let stylesInjected = false;
 
 /**
  * Obsidian设置面板
@@ -20,16 +51,16 @@ export class SettingsTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass('md-formatter-settings');
 
-    // 文件处理设置
+    if (!stylesInjected) {
+      const style = document.createElement('style');
+      style.textContent = COLLAPSIBLE_STYLES;
+      document.head.appendChild(style);
+      stylesInjected = true;
+    }
+
     this.renderFileSettings(containerEl);
-
-    // 编码设置
     this.renderEncodingSettings(containerEl);
-
-    // AI 设置
     this.renderAISettings(containerEl);
-
-    // 规则配置
     this.renderRuleSettings(containerEl);
   }
 
@@ -102,10 +133,8 @@ export class SettingsTab extends PluginSettingTab {
       .setName('规则配置')
       .setHeading();
 
-    // 特殊处理 frontmatter 规则（子规则嵌套）
     this.renderFrontmatterRuleSettings(containerEl);
 
-    // 其他规则（基本开关）
     const otherRules = [
       { name: 'headingStructure', label: '标题层级结构' },
       { name: 'heading', label: '标题规范化' },
@@ -120,7 +149,6 @@ export class SettingsTab extends PluginSettingTab {
       this.renderRuleToggle(containerEl, rule.name, rule.label);
     }
 
-    // 重置按钮
     new Setting(containerEl)
       .addButton((btn) =>
         btn
@@ -133,27 +161,11 @@ export class SettingsTab extends PluginSettingTab {
       );
   }
 
-  /**
-   * 渲染 frontmatter 规则的子规则设置
-   */
   private renderFrontmatterRuleSettings(containerEl: HTMLElement): void {
-    const frontmatterRule: any = this.plugin.settings.rules['frontmatter'] || {};
-    let subRules: any;
-    if (frontmatterRule.subRules && frontmatterRule.subRules.created) {
-      subRules = frontmatterRule.subRules;
-    } else {
-      subRules = {
-        created: { enabled: true, useFileCtime: true },
-        updated: { enabled: true },
-        tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
-        summary: { enabled: true, ai: { enabled: true } },
-        categories: { enabled: true, ai: { enabled: true } },
-        title: { enabled: true, useFilename: true },
-      };
-    }
+    const rule = this.getOrCreateFrontmatterRule();
+    const subRules = (rule as Record<string, unknown>).subRules as Record<string, unknown> || DEFAULT_SUBRULES;
 
-    // 主开关
-    const mainEnabled = frontmatterRule.enabled !== false;
+    const mainEnabled = rule.enabled !== false;
     new Setting(containerEl)
       .setName('Frontmatter 格式化')
       .setDesc('处理 frontmatter 各字段')
@@ -161,11 +173,7 @@ export class SettingsTab extends PluginSettingTab {
         toggle
           .setValue(mainEnabled)
           .onChange(async (value) => {
-            if (!this.plugin.settings.rules['frontmatter']) {
-              this.plugin.settings.rules['frontmatter'] = { enabled: value, subRules: {} };
-            } else {
-              this.plugin.settings.rules['frontmatter'].enabled = value;
-            }
+            this.getOrCreateFrontmatterRule().enabled = value;
             await this.plugin.saveSettings();
             this.display();
           })
@@ -173,116 +181,89 @@ export class SettingsTab extends PluginSettingTab {
 
     if (!mainEnabled) return;
 
-    // 字段规范化折叠面板（带开关）
-    this.renderCollapsibleSetting(containerEl, '字段规范化', 'create→created, update→updated, tag→tags', frontmatterRule, async (value) => {
-      this.ensureFrontmatterRule();
-      (this.plugin.settings.rules['frontmatter'] as any).normalizeFields = value;
-      await this.plugin.saveSettings();
-    }, [
-      { name: '启用字段规范化', key: 'normalizeFields', desc: '自动转换字段名', value: frontmatterRule?.normalizeFields !== false }
+    const getSubVal = (path: string, fallback: boolean): boolean => {
+      const keys = path.split('.');
+      let obj: unknown = subRules;
+      for (const k of keys) {
+        if (obj && typeof obj === 'object' && k in obj) {
+          obj = (obj as Record<string, unknown>)[k];
+        } else {
+          return fallback;
+        }
+      }
+      return typeof obj === 'boolean' ? obj : fallback;
+    };
+
+    // 字段规范化
+    this.renderCollapsibleSetting(containerEl, '字段规范化', 'create→created, update→updated, tag→tags', rule, [
+      { name: '启用字段规范化', key: 'normalizeFields', desc: '自动转换字段名', value: (rule as Record<string, unknown>).normalizeFields !== false }
     ]);
 
-    // created 折叠面板
-    this.renderCollapsibleSetting(containerEl, 'created 时间', '缺失时自动填充', subRules.created, async (value) => {
-      subRules.created.enabled = value;
-      await this.plugin.saveSettings();
-    }, [
-      { name: '使用文件创建时间', key: 'useFileCtime', desc: '缺失 created 时使用文件创建时间填充', value: subRules.created?.useFileCtime !== false }
+    // created
+    this.renderCollapsibleSetting(containerEl, 'created 时间', '缺失时自动填充', subRules, [
+      { name: '使用文件创建时间', key: 'created.useFileCtime', desc: '缺失 created 时使用文件创建时间填充', value: getSubVal('created.useFileCtime', true) }
     ]);
 
-    // updated 折叠面板（带开关）
-    this.renderCollapsibleSetting(containerEl, 'updated 时间', '每次格式化更新为当前时间', subRules.updated, async (value) => {
-      subRules.updated.enabled = value;
-      await this.plugin.saveSettings();
-    }, [
-      { name: '启用 updated 更新时间', key: 'enabled', desc: '每次格式化时更新', value: subRules.updated?.enabled !== false }
+    // updated
+    this.renderCollapsibleSetting(containerEl, 'updated 时间', '每次格式化更新为当前时间', subRules, [
+      { name: '启用 updated 更新', key: 'updated.enabled', desc: '每次格式化时更新 updated 为当前时间', value: getSubVal('updated.enabled', true) }
     ]);
 
-    // tags 折叠面板
-    this.renderCollapsibleSetting(containerEl, '标签 (tags)', '处理标签字段', subRules.tags, async (value) => {
-      subRules.tags.enabled = value;
-      await this.plugin.saveSettings();
-    }, [
-      { name: '确保时间标签', key: 'ensureTimeTags', desc: '自动添加 Year/Month 标签', value: subRules.tags?.ensureTimeTags !== false },
-      ...(this.plugin.settings.aiFrontmatter.enabled ? [
-        { name: 'AI 生成标签', key: 'ai.enabled', desc: '使用 AI 生成内容相关标签', value: subRules.tags?.ai?.enabled !== false }
-      ] : [])
-    ]);
+    // tags
+    const tagsItems: { name: string; key: string; desc: string; value: boolean }[] = [
+      { name: '确保时间标签', key: 'tags.ensureTimeTags', desc: '自动添加 Year/Month 标签', value: getSubVal('tags.ensureTimeTags', true) },
+    ];
+    if (this.plugin.settings.aiFrontmatter.enabled) {
+      tagsItems.push({ name: 'AI 生成标签', key: 'tags.ai.enabled', desc: '使用 AI 生成内容相关标签', value: getSubVal('tags.ai.enabled', true) });
+    }
+    this.renderCollapsibleSetting(containerEl, '标签 (tags)', '处理标签字段', subRules, tagsItems);
 
-    // summary 折叠面板
-    this.renderCollapsibleSetting(containerEl, '摘要 (summary)', '处理摘要字段', subRules.summary, async (value) => {
-      subRules.summary.enabled = value;
-      await this.plugin.saveSettings();
-    }, [
-      ...(this.plugin.settings.aiFrontmatter.enabled ? [
-        { name: 'AI 生成摘要', key: 'ai.enabled', desc: '使用 AI 生成摘要（已���摘要不会被覆盖）', value: subRules.summary?.ai?.enabled !== false }
-      ] : [])
-    ]);
+    // summary
+    if (this.plugin.settings.aiFrontmatter.enabled) {
+      this.renderCollapsibleSetting(containerEl, '摘要 (summary)', '处理摘要字段', subRules, [
+        { name: 'AI 生成摘要', key: 'summary.ai.enabled', desc: '使用 AI 生成摘要（已有摘要不会被覆盖）', value: getSubVal('summary.ai.enabled', true) }
+      ]);
+    }
 
-    // categories 折叠面板
-    this.renderCollapsibleSetting(containerEl, '分类 (categories)', '处理分类字段', subRules.categories, async (value) => {
-      subRules.categories.enabled = value;
-      await this.plugin.saveSettings();
-    }, [
-      ...(this.plugin.settings.aiFrontmatter.enabled ? [
-        { name: 'AI 生成分类', key: 'ai.enabled', desc: '使用 AI 生成分类', value: subRules.categories?.ai?.enabled !== false }
-      ] : [])
-    ]);
+    // categories
+    if (this.plugin.settings.aiFrontmatter.enabled) {
+      this.renderCollapsibleSetting(containerEl, '分类 (categories)', '处理分类字段', subRules, [
+        { name: 'AI 生成分类', key: 'categories.ai.enabled', desc: '使用 AI 生成分类', value: getSubVal('categories.ai.enabled', true) }
+      ]);
+    }
 
-    // title 折叠面板
-    this.renderCollapsibleSetting(containerEl, '标题 (title)', '处理标题字段', subRules.title, async (value) => {
-      subRules.title.enabled = value;
-      await this.plugin.saveSettings();
-    }, [
-      { name: '使用文件名作为标题', key: 'useFilename', desc: '缺失 title 时用文件名填充', value: subRules.title?.useFilename !== false }
+    // title
+    this.renderCollapsibleSetting(containerEl, '标题 (title)', '处理标题字段', subRules, [
+      { name: '使用文件名作为标题', key: 'title.useFilename', desc: '缺失 title 时用文件名填充', value: getSubVal('title.useFilename', true) }
     ]);
   }
 
-  /**
-   * 渲染可折叠的设置面板
-   */
   private renderCollapsibleSetting(
     containerEl: HTMLElement,
     title: string,
     desc: string,
-    config: any,
-    onToggle: (value: boolean) => Promise<void>,
+    config: Record<string, unknown>,
     subItems: { name: string; key: string; desc: string; value: boolean }[]
   ): void {
     const details = document.createElement('details');
-    details.style.marginBottom = '8px';
+    details.addClass('md-formatter-collapsible');
 
     const summary = document.createElement('summary');
-    summary.style.cursor = 'pointer';
-    summary.style.listStyle = 'none';
-    summary.style.display = 'flex';
-    summary.style.alignItems = 'center';
-    summary.style.gap = '8px';
-    summary.style.marginBottom = '4px';
-    summary.style.padding = '4px 8px';
-    summary.style.borderRadius = '4px';
-    summary.style.background = 'var(--background-secondary)';
 
-    // 标题（无复选框）
     const titleSpan = document.createElement('span');
+    titleSpan.addClass('title');
     titleSpan.textContent = title;
-    titleSpan.style.fontWeight = '500';
     summary.appendChild(titleSpan);
 
     const descSpan = document.createElement('span');
+    descSpan.addClass('desc');
     descSpan.textContent = desc;
-    descSpan.style.fontSize = '12px';
-    descSpan.style.color = 'var(--text-muted)';
-    descSpan.style.marginLeft = 'auto';
     summary.appendChild(descSpan);
 
     details.appendChild(summary);
 
-    // 子选项内容
     const content = document.createElement('div');
-    content.style.paddingLeft = '24px';
-    content.style.borderLeft = '2px solid var(--background-modifier-border)';
-    content.style.marginTop = '4px';
+    content.addClass('md-formatter-collapsible-content');
 
     for (const item of subItems) {
       const setting = new Setting(content);
@@ -292,13 +273,7 @@ export class SettingsTab extends PluginSettingTab {
         toggle
           .setValue(item.value)
           .onChange(async (value) => {
-            const keys = item.key.split('.');
-            let obj = config;
-            for (let i = 0; i < keys.length - 1; i++) {
-              if (!obj[keys[i]]) obj[keys[i]] = {};
-              obj = obj[keys[i]];
-            }
-            obj[keys[keys.length - 1]] = value;
+            this.setNestedValue(config, item.key, value);
             await this.plugin.saveSettings();
           })
       );
@@ -316,41 +291,27 @@ export class SettingsTab extends PluginSettingTab {
     containerEl.appendChild(details);
   }
 
-  /**
-   * 确保 frontmatter 规则的 subRules 结构存在
-   */
-  private ensureFrontmatterSubRules(): void {
-    this.ensureFrontmatterRule();
-    if (!this.plugin.settings.rules['frontmatter']!.subRules) {
-      this.plugin.settings.rules['frontmatter']!.subRules = {
-        created: { enabled: true, useFileCtime: true },
-        updated: { enabled: true },
-        tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
-        summary: { enabled: true, ai: { enabled: true } },
-        categories: { enabled: true, ai: { enabled: true } },
-        title: { enabled: true, useFilename: true },
-      };
+  private setNestedValue(obj: Record<string, unknown>, key: string, value: unknown): void {
+    const keys = key.split('.');
+    let current: Record<string, unknown> = obj;
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (!current[keys[i]] || typeof current[keys[i]] !== 'object') {
+        current[keys[i]] = {};
+      }
+      current = current[keys[i]] as Record<string, unknown>;
     }
+    current[keys[keys.length - 1]] = value;
   }
 
-  /**
-   * 确保 frontmatter 规则配置存在
-   */
-  private ensureFrontmatterRule(): void {
+  private getOrCreateFrontmatterRule(): RuleConfig {
     if (!this.plugin.settings.rules['frontmatter']) {
       this.plugin.settings.rules['frontmatter'] = {
         enabled: true,
         normalizeFields: true,
-        subRules: {
-          created: { enabled: true, useFileCtime: true },
-          updated: { enabled: true },
-          tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
-          summary: { enabled: true, ai: { enabled: true } },
-          categories: { enabled: true, ai: { enabled: true } },
-          title: { enabled: true, useFilename: true },
-        },
-      } as any;
+        subRules: { ...DEFAULT_SUBRULES },
+      };
     }
+    return this.plugin.settings.rules['frontmatter']!;
   }
 
   private renderRuleToggle(containerEl: HTMLElement, ruleName: string, label: string): void {
@@ -394,11 +355,7 @@ export class SettingsTab extends PluginSettingTab {
       return;
     }
 
-    // 提供商管理区域
-    new Setting(containerEl)
-      .setName('AI 提供商配置')
-      .setHeading();
-
+    // 提供商列表（每个为折叠面板）
     const providers = this.plugin.settings.aiFrontmatter.providers;
     for (let i = 0; i < providers.length; i++) {
       this.renderProviderItem(containerEl, providers[i], i);
@@ -407,6 +364,7 @@ export class SettingsTab extends PluginSettingTab {
     // 添加提供商按钮
     new Setting(containerEl)
       .setName('添加提供商')
+      .setDesc('添加新的 AI 提供商配置')
       .addButton((btn) =>
         btn
           .setButtonText('+ 添加')
@@ -424,7 +382,6 @@ export class SettingsTab extends PluginSettingTab {
           })
       );
 
-    // 标签数量上限
     new Setting(containerEl)
       .setName('标签数量上限')
       .setDesc('AI 生成标签的最大数量')
@@ -437,7 +394,6 @@ export class SettingsTab extends PluginSettingTab {
           })
       );
 
-    // 分类数量上限
     new Setting(containerEl)
       .setName('分类数量上限')
       .setDesc('AI 生成分类的最大数量')
@@ -450,7 +406,6 @@ export class SettingsTab extends PluginSettingTab {
           })
       );
 
-    // 自定义提示词补充
     new Setting(containerEl)
       .setName('自定义提示词补充')
       .setDesc('附加到 AI 提示词末尾的自定义内容，用于微调生成结果')
@@ -468,45 +423,67 @@ export class SettingsTab extends PluginSettingTab {
   private renderProviderItem(containerEl: HTMLElement, provider: AIProviderConfig, index: number): void {
     const providers = this.plugin.settings.aiFrontmatter.providers;
     const isDefault = index === 0;
-    const displayName = isDefault ? `${provider.name} (默认)` : provider.name;
 
-    // 提供商标题行：名称 + 操作按钮
-    new Setting(containerEl)
-      .setName(displayName)
-      .addButton((btn) =>
-        btn
-          .setButtonText('↑')
-          .setDisabled(index === 0)
-          .onClick(async () => {
-            // 与上一个交换
-            [providers[index], providers[index - 1]] = [providers[index - 1], providers[index]];
-            await this.plugin.saveSettings();
-            this.display();
-          })
-      )
-      .addButton((btn) =>
-        btn
-          .setButtonText('↓')
-          .setDisabled(index === providers.length - 1)
-          .onClick(async () => {
-            // 与下一个交换
-            [providers[index], providers[index + 1]] = [providers[index + 1], providers[index]];
-            await this.plugin.saveSettings();
-            this.display();
-          })
-      )
-      .addButton((btn) =>
-        btn
-          .setButtonText('删除')
-          .onClick(async () => {
-            providers.splice(index, 1);
-            await this.plugin.saveSettings();
-            this.display();
-          })
-      );
+    const details = document.createElement('details');
+    details.addClass('md-formatter-collapsible');
 
-    // 提供商名称
-    new Setting(containerEl)
+    const summary = document.createElement('summary');
+
+    // 名称
+    const titleSpan = document.createElement('span');
+    titleSpan.addClass('title');
+    titleSpan.textContent = provider.name || '未命名提供商';
+    summary.appendChild(titleSpan);
+
+    // "默认" 标记
+    if (isDefault) {
+      const badge = document.createElement('span');
+      badge.addClass('badge');
+      badge.textContent = '默认';
+      summary.appendChild(badge);
+    }
+
+    // 操作按钮区域
+    const actions = document.createElement('span');
+    actions.addClass('md-formatter-provider-actions');
+
+    const upBtn = document.createElement('button');
+    upBtn.textContent = '↑';
+    upBtn.disabled = index === 0;
+    upBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      [providers[index], providers[index - 1]] = [providers[index - 1], providers[index]];
+      this.plugin.saveSettings().then(() => this.display());
+    });
+    actions.appendChild(upBtn);
+
+    const downBtn = document.createElement('button');
+    downBtn.textContent = '↓';
+    downBtn.disabled = index === providers.length - 1;
+    downBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      [providers[index], providers[index + 1]] = [providers[index + 1], providers[index]];
+      this.plugin.saveSettings().then(() => this.display());
+    });
+    actions.appendChild(downBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '删除';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      providers.splice(index, 1);
+      this.plugin.saveSettings().then(() => this.display());
+    });
+    actions.appendChild(delBtn);
+
+    summary.appendChild(actions);
+    details.appendChild(summary);
+
+    // 折叠内容：提供商配置字段
+    const content = document.createElement('div');
+    content.addClass('md-formatter-collapsible-content');
+
+    new Setting(content)
       .setName('提供商名称')
       .addText((text) =>
         text
@@ -517,8 +494,7 @@ export class SettingsTab extends PluginSettingTab {
           })
       );
 
-    // Base URL
-    new Setting(containerEl)
+    new Setting(content)
       .setName('API 地址 (Base URL)')
       .setDesc('AI 服务的基础 URL，例如 https://api.openai.com/v1')
       .addText((text) =>
@@ -531,8 +507,7 @@ export class SettingsTab extends PluginSettingTab {
           })
       );
 
-    // API Key
-    new Setting(containerEl)
+    new Setting(content)
       .setName('API Key')
       .setDesc('AI 服务的认证密钥')
       .addText((text) =>
@@ -545,8 +520,7 @@ export class SettingsTab extends PluginSettingTab {
           })
       );
 
-    // Model
-    new Setting(containerEl)
+    new Setting(content)
       .setName('模型名称')
       .setDesc('使用的 AI 模型，例如 gpt-4o-mini')
       .addText((text) =>
@@ -559,8 +533,7 @@ export class SettingsTab extends PluginSettingTab {
           })
       );
 
-    // Temperature
-    new Setting(containerEl)
+    new Setting(content)
       .setName('Temperature')
       .setDesc('生成温度 (0-2)，越高越随机')
       .addText((text) =>
@@ -572,8 +545,7 @@ export class SettingsTab extends PluginSettingTab {
           })
       );
 
-    // Max Tokens
-    new Setting(containerEl)
+    new Setting(content)
       .setName('最大 Tokens')
       .setDesc('AI 生成的最大 token 数量')
       .addText((text) =>
@@ -584,5 +556,14 @@ export class SettingsTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    details.appendChild(content);
+
+    summary.addEventListener('click', (e) => {
+      e.preventDefault();
+      details.open = !details.open;
+    });
+
+    containerEl.appendChild(details);
   }
 }

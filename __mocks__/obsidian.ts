@@ -5,6 +5,9 @@ const _mocks = {
 };
 
 export const requestUrl = (...args: any[]) => _mocks.requestUrl(...args);
+export class Notice {
+  constructor(public message: string) {}
+}
 
 // Expose internal mock object for tests to override
 export const __mocks = _mocks;

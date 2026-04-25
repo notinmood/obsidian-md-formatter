@@ -119,6 +119,18 @@ export interface FrontmatterSubRules {
 }
 
 /**
+ * Frontmatter 子规则默认配置
+ */
+export const DEFAULT_SUBRULES: FrontmatterSubRules = {
+  created: { enabled: true, useFileCtime: true },
+  updated: { enabled: true },
+  tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
+  summary: { enabled: true, ai: { enabled: true } },
+  categories: { enabled: true, ai: { enabled: true } },
+  title: { enabled: true, useFilename: true },
+};
+
+/**
  * Frontmatter 规则完整配置
  */
 export interface FrontmatterConfig extends RuleConfig {

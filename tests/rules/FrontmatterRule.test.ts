@@ -306,3 +306,130 @@ describe('时间标签', () => {
     expect(yearCount).toBe(1);
   });
 });
+
+describe('子规则开关', () => {
+  let rule: FrontmatterRule;
+  const fileInfo = { ctime: new Date('2026-04-24T14:30:00').getTime(), mtime: new Date('2026-04-21T10:00:00').getTime() };
+
+  beforeEach(() => {
+    rule = new FrontmatterRule();
+  });
+
+  it('关闭 created 子规则时不应填充 created 字段', async () => {
+    const content = '---\ntitle: Test\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true, subRules: { created: { enabled: false, useFileCtime: true } } }, 'Test', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).not.toContain('created:');
+  });
+
+  it('关闭 updated 子规则时不应更新 updated 字段', async () => {
+    const content = '---\ncreated: 2026-04-21\nupdated: 2026-04-21\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true, subRules: { updated: { enabled: false } } }, 'Test', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).toContain('updated: 2026-04-21');
+  });
+
+  it('关闭 tags 子规则时不应添加时间标签', async () => {
+    const content = '---\ncreated: 2026-04-21\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true, subRules: { tags: { enabled: false, ensureTimeTags: true, ai: { enabled: false } } } }, 'Test', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).not.toContain('Year/');
+    expect(yamlNode?.value).not.toContain('Month/');
+  });
+
+  it('关闭 title 子规则时不应添加 title', async () => {
+    const content = '---\ncreated: 2026-04-21\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true, subRules: { title: { enabled: false, useFilename: true } } }, 'MyDocument', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).not.toContain('title: MyDocument');
+  });
+
+  it('关闭 created.useFileCtime 时不应从 fileInfo 填充', async () => {
+    const content = '---\ntitle: Test\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true, subRules: { created: { enabled: true, useFileCtime: false } } }, 'Test', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).not.toContain('created:');
+  });
+
+  it('关闭 title.useFilename 时不应从文件名填充 title', async () => {
+    const content = '---\ncreated: 2026-04-21\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true, subRules: { title: { enabled: true, useFilename: false } } }, 'MyDocument', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).not.toContain('title: MyDocument');
+  });
+});
+
+describe('配置深合并', () => {
+  let rule: FrontmatterRule;
+  const fileInfo = { ctime: new Date('2026-04-24T14:30:00').getTime(), mtime: new Date('2026-04-21T10:00:00').getTime() };
+
+  beforeEach(() => {
+    rule = new FrontmatterRule();
+  });
+
+  it('部分 subRules 配置应与默认值合并', async () => {
+    const content = '---\ntitle: Test\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    // 只传 created.enabled=false，其他应保留默认值
+    const result = await rule.apply(ast, {
+      enabled: true,
+      subRules: { created: { enabled: false, useFileCtime: true } },
+    }, 'Test', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).not.toContain('created:');
+    // title 仍由默认值控制
+    expect(yamlNode?.value).toContain('title: Test');
+  });
+
+  it('旧配置无 subRules 时应使用默认值', async () => {
+    const content = '---\ntitle: Test\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true }, 'Test', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).toContain('created:');
+  });
+
+  it('normalizeFields 单独关闭时其他子规则仍生效', async () => {
+    const content = '---\ncreate: 2026-04-21\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const result = await rule.apply(ast, { enabled: true, normalizeFields: false }, 'MyDoc', fileInfo);
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    // 不规范化，保持 create
+    expect(yamlNode?.value).toContain('create:');
+    // title 仍添加
+    expect(yamlNode?.value).toContain('title: MyDoc');
+  });
+});

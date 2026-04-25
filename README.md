@@ -10,6 +10,7 @@
 - **大文件支持** - 自动检测大文件并进行分块处理
 - **编码检测** - 支持 UTF-8、GBK、GB2312、BIG5 等编码自动检测
 - **可配置规则** - 每条格式化规则都可独立开关
+- **Frontmatter 子规则** - 时间字段、标签、摘要、分类、标题各自独立开关
 - **标题层级结构** - 确保标题逐级递增，全文仅一个一级标题
 - **代码块语言推断** - 自动推断代码块语言，无法推断时使用 `plain`
 - **智能空行控制** - 不同块元素间保留 1 个空行，相同块元素间无空行
@@ -20,7 +21,7 @@
 
 | 规则 | 说明 |
 |------|------|
-| Frontmatter 格式化 | 确保 YAML frontmatter 使用 `---` 标记，自动填充 `created`/`updated` 时间字段，生成时间标签（Year/YYYY、Month/MM） |
+| Frontmatter 格式化 | 确保 YAML frontmatter 使用 `---` 标记，支持字段规范化、时间字段、标签、摘要、分类、标题等子规则独立配置 |
 | 标题层级结构 | 确保标题逐级递增（# → ## → ###），全文仅一个一级标题，没有则用文件名作为标题 |
 | 标题规范化 | 移除标题前多余空行，强制 ATX 风格（`#`） |
 | 段落格式化 | 清理行尾空白，默认不添加段落间空行（可配置） |
@@ -28,6 +29,22 @@
 | 代码块处理 | 自动推断代码块语言（支持 TypeScript、Python、Shell、JSON、YAML 等），无语言标识时使用 `plain` |
 | 表格格式化 | 自动对齐表格列 |
 | 链接/图片 | 格式化链接和图片语法 |
+
+### Frontmatter 子规则
+
+Frontmatter 规则支持细粒度的子规则配置，每个子功能可独立开关：
+
+| 子规则 | 说明 | 是否依赖 AI |
+|--------|------|-------------|
+| 字段规范化 | `create→created`、`update→updated`、`tag→tags` 自动转换 | 否 |
+| created 时间 | 缺失时自动从文件创建时间填充 | 否 |
+| updated 时间 | 每次格式化时更新为当前时间 | 否 |
+| 标签 (tags) | 确保时间标签（Year/YYYY、Month/MM）存在；AI 生成内容标签 | 确定性逻辑否，AI 标签是 |
+| 摘要 (summary) | AI 生成摘要（已有摘要不覆盖） | 是 |
+| 分类 (categories) | AI 生成分类 | 是 |
+| 标题 (title) | 缺失时用文件名填充 | 否 |
+
+> 不依赖 AI 的子规则在 AI 不可用时仍正常执行，AI 相关子规则会静默跳过。
 
 ## 安装
 
@@ -87,21 +104,24 @@ npm run build
 - 自动检测编码 - 尝试自动检测文件编码
 - 回退编码 - 检测失败时的默认编码
 
-**规则配置**
-- 可独立开关每条格式化规则
-
-**AI Frontmatter 设置**（默认关闭）
+**AI 设置**（默认关闭）
 - 启用 AI 元数据生成 - 开启后格式化时调用 AI 生成标签、摘要、分类
-- AI 提供商管理 - 配置多个提供商，支持故障自动切换
+- AI 提供商管理 - 配置多个提供商（点击名称展开编辑），支持排序和故障自动切换
 - 标签/分类数量上限
 - 自定义提示词
+
+**规则配置**
+- Frontmatter 格式化 - 主开关 + 子规则折叠面板（字段规范化、created、updated、tags、summary、categories、title 各自独立配置）
+- 其他规则 - 标题层级结构、标题规范化、段落、列表、代码块、表格、链接/图片，均可独立开关
 
 > ⚠️ **AI 功能注意事项**：
 > - AI 元数据生成**默认是关闭的**，需要在设置中手动启用并配置 AI 提供商
 > - 启用后，格式化操作会调用 AI API，**响应时间会明显变长**（通常需要数秒到数十秒），请耐心等待
 > - AI 不可用时（未配置、网络异常、API 余额不足等），格式化仍会正常执行确定性逻辑（时间字段、时间标签、字段规范化等），AI 相关字段会跳过
+> - AI 调用失败时会在 Obsidian 通知栏显示错误提示，具体错误信息可在开发者控制台（Ctrl+Shift+I）查看
 > - AI 生成的 tags 使用二级格式（如 `科技/AI`），categories 也使用二级格式（如 `人文社科/历史`）
 > - 所有 AI 调用使用 OpenAI 兼容的 `/chat/completions` 接口，支持 DeepSeek、通义千问、智谱等国内大模型
+> - 如果没有自己的ai账户。推荐使用智普免费的大模型：API地址：`https://open.bigmodel.cn/api/paas/v4`；API Key：<需要你到智普官方注册生成key，免费>；模型名称：`glm-4-flash`（这个模型是免费的，官方文档说这个已经下线，其实可以继续使用。并且也因此使用的人比较少，挺快。）
 
 ## 技术栈
 
@@ -133,13 +153,13 @@ npm run build
 obsidian-md-formatter/
 ├── src/
 │   ├── main.ts              # 插件入口
-│   ├── types/               # 类型定义
+│   ├── types/               # 类型定义（含 FrontmatterConfig、DEFAULT_SUBRULES）
 │   ├── core/                # 核心模块
 │   │   ├── Formatter.ts     # 格式化引擎
 │   │   ├── RuleRegistry.ts  # 规则注册中心
 │   │   └── FileProcessor.ts # 文件处理器
 │   ├── rules/               # 格式化规则
-│   │   ├── FrontmatterRule.ts
+│   │   ├── FrontmatterRule.ts  # 支持子规则嵌套配置
 │   │   ├── HeadingStructureRule.ts
 │   │   ├── HeadingRule.ts
 │   │   ├── ParagraphRule.ts
@@ -147,16 +167,15 @@ obsidian-md-formatter/
 │   │   ├── CodeBlockRule.ts
 │   │   ├── TableRule.ts
 │   │   └── LinkRule.ts
-│   ├── services/             # AI 服务
-│   │   └── AIService.ts     # AI 元数据生成（多提供商+故障转移）
-│   ├── ui/                  # 设置面板
+│   ├── services/            # AI 服务
+│   │   └── AIService.ts     # AI 元数据生成（多提供商+故障转移+错误日志）
+│   ├── ui/                  # 设置面板（折叠面板样式）
 │   └── utils/               # 工具函数
 ├── tests/                   # 测试文件
 ├── manifest.json            # 插件清单
 ├── styles.css               # 样式
 └── package.json
 ```
-
 
 ## 参考资料
 

@@ -7,7 +7,9 @@ import type {
   AIService,
   FrontmatterConfig,
   FrontmatterSubRules,
+  AIMetadataResult,
 } from '../types';
+import { DEFAULT_SUBRULES } from '../types';
 
 /**
  * Frontmatter 格式化规则
@@ -21,38 +23,7 @@ export class FrontmatterRule implements FormatRule {
   defaultConfig: FrontmatterConfig = {
     enabled: true,
     normalizeFields: true,
-    subRules: {
-      created: {
-        enabled: true,
-        useFileCtime: true,
-      },
-      updated: {
-        enabled: true,
-      },
-      tags: {
-        enabled: true,
-        ensureTimeTags: true,
-        ai: {
-          enabled: true,
-        },
-      },
-      summary: {
-        enabled: true,
-        ai: {
-          enabled: true,
-        },
-      },
-      categories: {
-        enabled: true,
-        ai: {
-          enabled: true,
-        },
-      },
-      title: {
-        enabled: true,
-        useFilename: true,
-      },
-    },
+    subRules: { ...DEFAULT_SUBRULES },
   };
 
   /**
@@ -73,7 +44,7 @@ export class FrontmatterRule implements FormatRule {
     fileInfo?: FileInfo,
     aiService?: AIService
   ): Promise<AstNode> {
-    const cfg = { ...this.defaultConfig, ...config } as FrontmatterConfig;
+    const cfg = this.mergeConfig(config);
 
     if (cfg.enabled === false) {
       return ast;
@@ -115,22 +86,34 @@ export class FrontmatterRule implements FormatRule {
           yamlContent.updated = this.formatDate(Date.now());
         }
 
-        // 4. 执行 tags 子规则
+        // 4. 一次性调用 AI，获取 tags/summary/categories
+        const needAi = (cfg.subRules.tags.enabled && cfg.subRules.tags.ai.enabled)
+          || (cfg.subRules.summary.enabled && cfg.subRules.summary.ai.enabled)
+          || (cfg.subRules.categories.enabled && cfg.subRules.categories.ai.enabled);
+        const aiResult = needAi && aiService
+          ? await aiService.generateMetadata(
+            this.extractBody(clonedAst),
+            createdDate || '',
+            this.normalizeTags(yamlContent.tags),
+          )
+          : null;
+
+        // 5. 执行 tags 子规则
         if (cfg.subRules.tags.enabled && createdDate) {
-          await this.applyTags(clonedAst, yamlContent, createdDate, cfg.subRules.tags, aiService);
+          this.applyTags(yamlContent, createdDate, cfg.subRules.tags, aiResult);
         }
 
-        // 5. 执行 summary 子规则
+        // 6. 执行 summary 子规则
         if (cfg.subRules.summary.enabled) {
-          await this.applySummary(clonedAst, yamlContent, cfg.subRules.summary.ai, aiService);
+          this.applySummary(yamlContent, cfg.subRules.summary.ai, aiResult);
         }
 
-        // 6. 执行 categories 子规则
+        // 7. 执行 categories 子规则
         if (cfg.subRules.categories.enabled) {
-          await this.applyCategories(yamlContent, cfg.subRules.categories.ai, aiService);
+          this.applyCategories(yamlContent, cfg.subRules.categories.ai, aiResult);
         }
 
-        // 7. 执行 title 子规则
+        // 8. 执行 title 子规则
         if (cfg.subRules.title.enabled && !('title' in yamlContent) && filename && cfg.subRules.title.useFilename) {
           yamlContent.title = filename;
         }
@@ -147,6 +130,35 @@ export class FrontmatterRule implements FormatRule {
     }
 
     return clonedAst;
+  }
+
+  /**
+   * 深合并配置：确保 subRules 嵌套对象正确合并，而非被覆盖
+   */
+  private mergeConfig(config: RuleConfig): FrontmatterConfig {
+    const subRules: FrontmatterSubRules = JSON.parse(JSON.stringify(DEFAULT_SUBRULES));
+
+    if (config.subRules && typeof config.subRules === 'object') {
+      const incoming = config.subRules as unknown as Partial<FrontmatterSubRules>;
+      for (const key of Object.keys(incoming) as (keyof FrontmatterSubRules)[]) {
+        const val = incoming[key];
+        if (val && typeof val === 'object') {
+          (subRules as unknown as Record<string, unknown>)[key] = {
+            ...(subRules[key] as object),
+            ...(val as object),
+          };
+        }
+      }
+    }
+
+    return {
+      ...this.defaultConfig,
+      ...config,
+      normalizeFields: config.normalizeFields !== undefined
+        ? Boolean(config.normalizeFields)
+        : this.defaultConfig.normalizeFields,
+      subRules,
+    };
   }
 
   /**
@@ -190,13 +202,12 @@ export class FrontmatterRule implements FormatRule {
   /**
    * 应用 tags 子规则
    */
-  private async applyTags(
-    ast: AstNode,
+  private applyTags(
     yamlContent: Record<string, unknown>,
     createdDate: string,
     config: FrontmatterSubRules['tags'],
-    aiService?: AIService
-  ): Promise<void> {
+    aiResult: AIMetadataResult | null,
+  ): void {
     const dateInfo = this.extractDateInfo(createdDate);
     const yearTag = `Year/${dateInfo.year}`;
     const monthTag = `Month/${dateInfo.month}`;
@@ -212,15 +223,8 @@ export class FrontmatterRule implements FormatRule {
     }
 
     // AI 生成标签
-    if (config.ai.enabled && aiService) {
-      const bodyContent = this.extractBody(ast);
-      const aiResult = await aiService.generateMetadata(bodyContent, createdDate, tags);
-
-      if (aiResult) {
-        // AI 可用：覆盖 tags = 时间标签 + AI 标签
-        tags = [yearTag, monthTag, ...aiResult.tags];
-      }
-      // AI 调用失败：不改动 tags，保持确定性逻辑结果
+    if (config.ai.enabled && aiResult) {
+      tags = [yearTag, monthTag, ...aiResult.tags];
     }
 
     yamlContent.tags = tags;
@@ -229,50 +233,31 @@ export class FrontmatterRule implements FormatRule {
   /**
    * 应用 summary 子规则
    */
-  private async applySummary(
-    ast: AstNode,
+  private applySummary(
     yamlContent: Record<string, unknown>,
     aiConfig: FrontmatterSubRules['summary']['ai'],
-    aiService?: AIService
-  ): Promise<void> {
+    aiResult: AIMetadataResult | null,
+  ): void {
     // 已有 summary 则不覆盖
     if ('summary' in yamlContent && yamlContent.summary) {
       return;
     }
 
-    // AI 生成摘要
-    if (aiConfig.enabled && aiService) {
-      const bodyContent = this.extractBody(ast);
-      const createdDate = 'created' in yamlContent ? String(yamlContent.created) : undefined;
-      const existingTags = this.normalizeTags(yamlContent.tags);
-
-      const aiResult = await aiService.generateMetadata(bodyContent, createdDate || '', existingTags);
-
-      if (aiResult) {
-        yamlContent.summary = aiResult.summary;
-      }
+    if (aiConfig.enabled && aiResult) {
+      yamlContent.summary = aiResult.summary;
     }
   }
 
   /**
    * 应用 categories 子规则
    */
-  private async applyCategories(
+  private applyCategories(
     yamlContent: Record<string, unknown>,
     aiConfig: FrontmatterSubRules['categories']['ai'],
-    aiService?: AIService
-  ): Promise<void> {
-    // AI 生成分类
-    if (aiConfig.enabled && aiService) {
-      const bodyContent = '';  // categories 生成不需要内容
-      const createdDate = 'created' in yamlContent ? String(yamlContent.created) : undefined;
-      const existingTags = this.normalizeTags(yamlContent.tags);
-
-      const aiResult = await aiService.generateMetadata(bodyContent, createdDate || '', existingTags);
-
-      if (aiResult) {
-        yamlContent.categories = aiResult.categories;
-      }
+    aiResult: AIMetadataResult | null,
+  ): void {
+    if (aiConfig.enabled && aiResult) {
+      yamlContent.categories = aiResult.categories;
     }
   }
 

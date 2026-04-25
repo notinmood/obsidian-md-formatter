@@ -1,4 +1,4 @@
-import { requestUrl } from 'obsidian';
+import { requestUrl, Notice } from 'obsidian';
 import type { AIFrontmatterConfig, AIProviderConfig, AIMetadataResult, AIService } from '../types';
 
 export class AIServiceImpl implements AIService {
@@ -13,23 +13,32 @@ export class AIServiceImpl implements AIService {
       return null;
     }
 
-    for (const provider of this.config.providers) {
+    let lastError = '';
+    for (let i = 0; i < this.config.providers.length; i++) {
+      const provider = this.config.providers[i];
       try {
         const result = await this.callProvider(provider, content, createdDate, existingTags);
         if (result) return result;
-      } catch {
-        continue;
+        // callProvider 返回 null 但没抛异常（如响应解析失败）
+        lastError = '响应解析失败';
+      } catch (e) {
+        lastError = e instanceof Error ? e.message : String(e);
+        console.warn(`[MD Formatter] AI 提供商 "${provider.name}" 调用失败: ${lastError}`);
       }
     }
 
+    // 所有提供商均失败
+    console.warn(`[MD Formatter] AI 元数据生成失败: ${lastError}`);
+    new Notice(`AI 元数据生成失败：所有提供商均不可用 (${lastError})`);
     return null;
   }
 
   private async callProvider(provider: AIProviderConfig, content: string, createdDate: string, existingTags: string[]): Promise<AIMetadataResult | null> {
     const systemPrompt = this.buildSystemPrompt(existingTags);
+    const baseUrl = provider.baseUrl.replace(/\/+$/, '');
 
     const response = await requestUrl({
-      url: `${provider.baseUrl}/chat/completions`,
+      url: `${baseUrl}/chat/completions`,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -47,11 +56,16 @@ export class AIServiceImpl implements AIService {
     });
 
     if (response.status !== 200) {
+      console.warn(`[MD Formatter] AI 提供商 "${provider.name}" 返回状态码 ${response.status}`);
       return null;
     }
 
     const textContent = response.json?.choices?.[0]?.message?.content || '';
-    return this.parseResponse(textContent);
+    const result = this.parseResponse(textContent);
+    if (!result) {
+      console.warn(`[MD Formatter] AI 提供商 "${provider.name}" 返回内容无法解析: ${textContent.slice(0, 200)}`);
+    }
+    return result;
   }
 
   private buildSystemPrompt(existingTags: string[]): string {
