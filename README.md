@@ -121,7 +121,7 @@ npm run build
 > - AI 调用失败时会在 Obsidian 通知栏显示错误提示，具体错误信息可在开发者控制台（Ctrl+Shift+I）查看
 > - AI 生成的 tags 使用二级格式（如 `科技/AI`），categories 也使用二级格式（如 `人文社科/历史`）
 > - 所有 AI 调用使用 OpenAI 兼容的 `/chat/completions` 接口，支持 DeepSeek、通义千问、智谱等国内大模型
-> - 如果没有自己的ai账户。推荐使用智普免费的大模型：API地址：`https://open.bigmodel.cn/api/paas/v4`；API Key：<需要你到智普官方注册生成key，免费>；模型名称：`glm-4-flash`（这个模型是免费的，官方文档说这个已经下线，其实可以继续使用。并且也因此使用的人比较少，挺快。）
+> - 首先建议使用自己购买的ai服务。另外如果没有自己的ai账户，那么推荐使用智普免费的大模型：API地址：`https://open.bigmodel.cn/api/paas/v4`；API Key：<需要你到智普官方注册生成key，免费>；模型名称：`glm-4-flash`（这个模型是免费的，官方文档说这个已经下线，其实可以继续使用。并且也因此使用的人比较少，挺快。）
 
 ## 技术栈
 
