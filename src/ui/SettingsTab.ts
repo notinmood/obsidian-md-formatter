@@ -1,6 +1,6 @@
 // src/ui/SettingsTab.ts
 import { App, PluginSettingTab, Setting } from 'obsidian';
-import type { PluginSettings, RuleConfig, AIProviderConfig } from '../types';
+import type { PluginSettings, RuleConfig, AIProviderConfig, FrontmatterConfig } from '../types';
 import { DEFAULT_SETTINGS } from '../types';
 import type MarkdownFormatterPlugin from '../main';
 
@@ -102,8 +102,11 @@ export class SettingsTab extends PluginSettingTab {
       .setName('规则配置')
       .setHeading();
 
-    const rules = [
-      { name: 'frontmatter', label: 'Frontmatter 格式化' },
+    // 特殊处理 frontmatter 规则（子规则嵌套）
+    this.renderFrontmatterRuleSettings(containerEl);
+
+    // 其他规则（基本开关）
+    const otherRules = [
       { name: 'headingStructure', label: '标题层级结构' },
       { name: 'heading', label: '标题规范化' },
       { name: 'paragraph', label: '段落格式化' },
@@ -113,7 +116,7 @@ export class SettingsTab extends PluginSettingTab {
       { name: 'link', label: '链接/图片' },
     ];
 
-    for (const rule of rules) {
+    for (const rule of otherRules) {
       this.renderRuleToggle(containerEl, rule.name, rule.label);
     }
 
@@ -128,6 +131,288 @@ export class SettingsTab extends PluginSettingTab {
             this.display();
           })
       );
+  }
+
+  /**
+   * 渲染 frontmatter 规则的子规则设置
+   */
+  private renderFrontmatterRuleSettings(containerEl: HTMLElement): void {
+    const frontmatterRule: any = this.plugin.settings.rules['frontmatter'] || {};
+    let subRules: any;
+    if (frontmatterRule.subRules && frontmatterRule.subRules.created) {
+      subRules = frontmatterRule.subRules;
+    } else {
+      subRules = {
+        created: { enabled: true, useFileCtime: true },
+        updated: { enabled: true },
+        tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
+        summary: { enabled: true, ai: { enabled: true } },
+        categories: { enabled: true, ai: { enabled: true } },
+        title: { enabled: true, useFilename: true },
+      };
+    }
+
+    // 主开关
+    const mainEnabled = frontmatterRule.enabled !== false;
+    new Setting(containerEl)
+      .setName('Frontmatter 格式化')
+      .setDesc('处理 frontmatter 各字段')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(mainEnabled)
+          .onChange(async (value) => {
+            if (!this.plugin.settings.rules['frontmatter']) {
+              this.plugin.settings.rules['frontmatter'] = { enabled: value, subRules: {} };
+            } else {
+              this.plugin.settings.rules['frontmatter'].enabled = value;
+            }
+            await this.plugin.saveSettings();
+            this.display();
+          })
+      );
+
+    if (!mainEnabled) return;
+
+    // 缩进层级
+    const indent = (el: HTMLElement) => el.style.setProperty('padding-left', '20px');
+
+    // 字段规范化
+    const normalizeSetting = new Setting(containerEl);
+    normalizeSetting.setName('字段规范化');
+    normalizeSetting.setDesc('create→created, update→updated, tag→tags');
+    normalizeSetting.settingEl.style.paddingLeft = '20px';
+    normalizeSetting.addToggle((toggle) =>
+      toggle
+        .setValue(frontmatterRule.normalizeFields !== false)
+        .onChange(async (value) => {
+          this.ensureFrontmatterRule();
+          (this.plugin.settings.rules['frontmatter'] as any).normalizeFields = value;
+          await this.plugin.saveSettings();
+        })
+    );
+
+    // created 子规则
+    const createdSetting = new Setting(containerEl);
+    createdSetting.setName('created 时间');
+    createdSetting.setDesc('缺失时自动填充');
+    createdSetting.settingEl.style.paddingLeft = '20px';
+    createdSetting.addToggle((toggle) =>
+      toggle
+        .setValue((subRules as any).created?.enabled !== false)
+        .onChange(async (value) => {
+          this.ensureFrontmatterSubRules();
+          (this.plugin.settings.rules['frontmatter'] as any).subRules.created.enabled = value;
+          await this.plugin.saveSettings();
+        })
+    );
+
+    // created.useFileCtime
+    const createdUseFileCtimeSetting = new Setting(containerEl);
+    createdUseFileCtimeSetting.setName('使用文件创建时间');
+    createdUseFileCtimeSetting.setDesc('缺失 created 时使用文件创建时间填充');
+    createdUseFileCtimeSetting.settingEl.style.paddingLeft = '40px';
+    createdUseFileCtimeSetting.addToggle((toggle) =>
+      toggle
+        .setValue((subRules as any).created?.useFileCtime !== false)
+        .onChange(async (value) => {
+          this.ensureFrontmatterSubRules();
+          (this.plugin.settings.rules['frontmatter'] as any).subRules.created.useFileCtime = value;
+          await this.plugin.saveSettings();
+        })
+    );
+
+    // updated 子规则
+    const updatedSetting = new Setting(containerEl);
+    updatedSetting.setName('updated 时间');
+    updatedSetting.setDesc('每次格式化更新为当前时间');
+    updatedSetting.settingEl.style.paddingLeft = '20px';
+    updatedSetting.addToggle((toggle) =>
+      toggle
+        .setValue((subRules as any).updated?.enabled !== false)
+        .onChange(async (value) => {
+          this.ensureFrontmatterSubRules();
+          (this.plugin.settings.rules['frontmatter'] as any).subRules.updated.enabled = value;
+          await this.plugin.saveSettings();
+        })
+    );
+
+    // tags 子规则
+    const tagsSetting = new Setting(containerEl);
+    tagsSetting.setName('标签 (tags)');
+    tagsSetting.setDesc('处理标签字段');
+    tagsSetting.settingEl.style.paddingLeft = '20px';
+    tagsSetting.addToggle((toggle) =>
+      toggle
+        .setValue((subRules as any).tags?.enabled !== false)
+        .onChange(async (value) => {
+          this.ensureFrontmatterSubRules();
+          (this.plugin.settings.rules['frontmatter'] as any).subRules.tags.enabled = value;
+          await this.plugin.saveSettings();
+        })
+    );
+
+    // tags.ensureTimeTags
+    const tagsTimeTagsSetting = new Setting(containerEl);
+    tagsTimeTagsSetting.setName('确保时间标签');
+    tagsTimeTagsSetting.setDesc('自动添加 Year/Month 标签');
+    tagsTimeTagsSetting.settingEl.style.paddingLeft = '40px';
+    tagsTimeTagsSetting.addToggle((toggle) =>
+      toggle
+        .setValue((subRules as any).tags?.ensureTimeTags !== false)
+        .onChange(async (value) => {
+          this.ensureFrontmatterSubRules();
+          (this.plugin.settings.rules['frontmatter'] as any).subRules.tags.ensureTimeTags = value;
+          await this.plugin.saveSettings();
+        })
+    );
+
+    // tags.ai.enabled (仅当 aiFrontmatter 启用时)
+    if (this.plugin.settings.aiFrontmatter.enabled) {
+      const tagsAiSetting = new Setting(containerEl);
+      tagsAiSetting.setName('AI 生成标签');
+      tagsAiSetting.setDesc('使用 AI 生成内容相关标签');
+      tagsAiSetting.settingEl.style.paddingLeft = '40px';
+      tagsAiSetting.addToggle((toggle) =>
+        toggle
+          .setValue((subRules as any).tags?.ai?.enabled !== false)
+          .onChange(async (value) => {
+            this.ensureFrontmatterSubRules();
+            (this.plugin.settings.rules['frontmatter'] as any).subRules.tags.ai.enabled = value;
+            await this.plugin.saveSettings();
+          })
+      );
+    }
+
+    // summary 子规则
+    const summarySetting = new Setting(containerEl);
+    summarySetting.setName('摘要 (summary)');
+    summarySetting.setDesc('处理摘要字段');
+    summarySetting.settingEl.style.paddingLeft = '20px';
+    summarySetting.addToggle((toggle) =>
+      toggle
+        .setValue((subRules as any).summary?.enabled !== false)
+        .onChange(async (value) => {
+          this.ensureFrontmatterSubRules();
+          (this.plugin.settings.rules['frontmatter'] as any).subRules.summary.enabled = value;
+          await this.plugin.saveSettings();
+        })
+    );
+
+    // summary.ai.enabled (仅当 aiFrontmatter 启用时)
+    if (this.plugin.settings.aiFrontmatter.enabled) {
+      const summaryAiSetting = new Setting(containerEl);
+      summaryAiSetting.setName('AI 生成摘要');
+      summaryAiSetting.setDesc('使用 AI 生成摘要（已有摘要不会被覆盖）');
+      summaryAiSetting.settingEl.style.paddingLeft = '40px';
+      summaryAiSetting.addToggle((toggle) =>
+        toggle
+          .setValue((subRules as any).summary?.ai?.enabled !== false)
+          .onChange(async (value) => {
+            this.ensureFrontmatterSubRules();
+            (this.plugin.settings.rules['frontmatter'] as any).subRules.summary.ai.enabled = value;
+            await this.plugin.saveSettings();
+          })
+      );
+    }
+
+    // categories 子规则
+    const categoriesSetting = new Setting(containerEl);
+    categoriesSetting.setName('分类 (categories)');
+    categoriesSetting.setDesc('处理分类字段');
+    categoriesSetting.settingEl.style.paddingLeft = '20px';
+    categoriesSetting.addToggle((toggle) =>
+      toggle
+        .setValue((subRules as any).categories?.enabled !== false)
+        .onChange(async (value) => {
+          this.ensureFrontmatterSubRules();
+          (this.plugin.settings.rules['frontmatter'] as any).subRules.categories.enabled = value;
+          await this.plugin.saveSettings();
+        })
+    );
+
+    // categories.ai.enabled (仅当 aiFrontmatter 启用时)
+    if (this.plugin.settings.aiFrontmatter.enabled) {
+      const categoriesAiSetting = new Setting(containerEl);
+      categoriesAiSetting.setName('AI 生成分类');
+      categoriesAiSetting.setDesc('使用 AI 生成分类');
+      categoriesAiSetting.settingEl.style.paddingLeft = '40px';
+      categoriesAiSetting.addToggle((toggle) =>
+        toggle
+          .setValue((subRules as any).categories?.ai?.enabled !== false)
+          .onChange(async (value) => {
+            this.ensureFrontmatterSubRules();
+            (this.plugin.settings.rules['frontmatter'] as any).subRules.categories.ai.enabled = value;
+            await this.plugin.saveSettings();
+          })
+      );
+    }
+
+    // title 子规则
+    const titleSetting = new Setting(containerEl);
+    titleSetting.setName('标题 (title)');
+    titleSetting.setDesc('处理标题字段');
+    titleSetting.settingEl.style.paddingLeft = '20px';
+    titleSetting.addToggle((toggle) =>
+      toggle
+          .setValue((subRules as any).title?.enabled !== false)
+          .onChange(async (value) => {
+            this.ensureFrontmatterSubRules();
+            (this.plugin.settings.rules['frontmatter'] as any).subRules.title.enabled = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    // title.useFilename
+    const titleUseFilenameSetting = new Setting(containerEl);
+    titleUseFilenameSetting.setName('使用文件名作为标题');
+    titleUseFilenameSetting.setDesc('缺失 title 时用文件名填充');
+    titleUseFilenameSetting.settingEl.style.paddingLeft = '40px';
+    titleUseFilenameSetting.addToggle((toggle) =>
+      toggle
+        .setValue((subRules as any).title?.useFilename !== false)
+        .onChange(async (value) => {
+          this.ensureFrontmatterSubRules();
+          (this.plugin.settings.rules['frontmatter'] as any).subRules.title.useFilename = value;
+          await this.plugin.saveSettings();
+          })
+      );
+  }
+
+  /**
+   * 确保 frontmatter 规则的 subRules 结构存在
+   */
+  private ensureFrontmatterSubRules(): void {
+    this.ensureFrontmatterRule();
+    if (!this.plugin.settings.rules['frontmatter']!.subRules) {
+      this.plugin.settings.rules['frontmatter']!.subRules = {
+        created: { enabled: true, useFileCtime: true },
+        updated: { enabled: true },
+        tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
+        summary: { enabled: true, ai: { enabled: true } },
+        categories: { enabled: true, ai: { enabled: true } },
+        title: { enabled: true, useFilename: true },
+      };
+    }
+  }
+
+  /**
+   * 确保 frontmatter 规则配置存在
+   */
+  private ensureFrontmatterRule(): void {
+    if (!this.plugin.settings.rules['frontmatter']) {
+      this.plugin.settings.rules['frontmatter'] = {
+        enabled: true,
+        normalizeFields: true,
+        subRules: {
+          created: { enabled: true, useFileCtime: true },
+          updated: { enabled: true },
+          tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
+          summary: { enabled: true, ai: { enabled: true } },
+          categories: { enabled: true, ai: { enabled: true } },
+          title: { enabled: true, useFilename: true },
+        },
+      } as any;
+    }
   }
 
   private renderRuleToggle(containerEl: HTMLElement, ruleName: string, label: string): void {
