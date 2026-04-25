@@ -1,6 +1,6 @@
 // src/main.ts
 import { Plugin, Notice, TFile, Editor, MarkdownView } from 'obsidian';
-import { parse, stringify } from 'yaml';
+import { parse, Document as YamlDocument } from 'yaml';
 import { DEFAULT_SETTINGS, PluginSettings } from './types';
 import { RuleRegistry } from './core/RuleRegistry';
 import { Formatter } from './core/Formatter';
@@ -113,12 +113,14 @@ export default class MarkdownFormatterPlugin extends Plugin {
             new MetadataPreviewModal(this.app, formattedFrontmatter, (previewResult) => {
               if (previewResult.confirmed && previewResult.editedFrontmatter) {
                 const ordered = this.orderFrontmatterFields(previewResult.editedFrontmatter);
-                console.log('[MD Formatter] 预览确认后 frontmatter:', JSON.stringify(ordered));
-                const newYaml = stringify(ordered, {
-                  lineWidth: 0,
-                  defaultStringType: 'PLAIN',
-                  defaultKeyType: 'PLAIN',
-                }).trim();
+                const doc = new YamlDocument(ordered);
+                for (const key of ['tags', 'categories']) {
+                  if (key in ordered && Array.isArray(ordered[key])) {
+                    const node = doc.get(key, true) as import('yaml').YAMLSeq;
+                    if (node) node.flow = true;
+                  }
+                }
+                const newYaml = doc.toString({ lineWidth: 0 }).trim();
                 const newContent = result.content!.replace(/^---\s*\n[\s\S]*?\n---/, `---\n${newYaml}\n---`);
                 this.applyFormatResult(editor, newContent, cursor);
                 showNotice('格式化完成');

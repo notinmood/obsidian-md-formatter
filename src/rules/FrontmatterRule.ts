@@ -1,4 +1,4 @@
-import { parse, stringify } from 'yaml';
+import { parse, stringify, Document as YamlDocument } from 'yaml';
 import type {
   FormatRule,
   RuleConfig,
@@ -119,11 +119,16 @@ export class FrontmatterRule implements FormatRule {
         }
 
         // 重新生成 YAML 字符串（按指定顺序排列字段）
-        yamlNode.value = stringify(this.orderFields(yamlContent), {
-          lineWidth: 0,  // 不自动换行
-          defaultStringType: 'PLAIN',
-          defaultKeyType: 'PLAIN',
-        }).trim();
+        const ordered = this.orderFields(yamlContent);
+        // 数组字段使用行内（flow）格式，避免多行 YAML 在 remark 转换中丢失
+        const doc = new YamlDocument(ordered);
+        for (const key of ['tags', 'categories']) {
+          if (key in ordered && Array.isArray(ordered[key])) {
+            const node = doc.get(key, true) as import('yaml').YAMLSeq;
+            if (node) node.flow = true;
+          }
+        }
+        yamlNode.value = doc.toString({ lineWidth: 0 }).trim();
       }
     } catch {
       // YAML 解析失败，保持原样
