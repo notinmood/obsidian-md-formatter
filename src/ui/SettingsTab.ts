@@ -173,14 +173,11 @@ export class SettingsTab extends PluginSettingTab {
 
     if (!mainEnabled) return;
 
-    // 缩进层级
-    const indent = (el: HTMLElement) => el.style.setProperty('padding-left', '20px');
-
-    // 字段规范化
+    // 子规则容器（可折叠）
+    // 字段规范化（非折叠，独立显示）
     const normalizeSetting = new Setting(containerEl);
     normalizeSetting.setName('字段规范化');
     normalizeSetting.setDesc('create→created, update→updated, tag→tags');
-    normalizeSetting.settingEl.style.paddingLeft = '20px';
     normalizeSetting.addToggle((toggle) =>
       toggle
         .setValue(frontmatterRule.normalizeFields !== false)
@@ -191,191 +188,152 @@ export class SettingsTab extends PluginSettingTab {
         })
     );
 
-    // created 子规则
-    const createdSetting = new Setting(containerEl);
-    createdSetting.setName('created 时间');
-    createdSetting.setDesc('缺失时自动填充');
-    createdSetting.settingEl.style.paddingLeft = '20px';
-    createdSetting.addToggle((toggle) =>
-      toggle
-        .setValue((subRules as any).created?.enabled !== false)
-        .onChange(async (value) => {
-          this.ensureFrontmatterSubRules();
-          (this.plugin.settings.rules['frontmatter'] as any).subRules.created.enabled = value;
-          await this.plugin.saveSettings();
-        })
-    );
+    // created 折叠面板
+    this.renderCollapsibleSetting(containerEl, 'created 时间', '缺失时自动填充', subRules.created, async (value) => {
+      subRules.created.enabled = value;
+      await this.plugin.saveSettings();
+    }, [
+      { name: '使用文件创建时间', key: 'useFileCtime', desc: '缺失 created 时使用文件创建时间填充', value: subRules.created?.useFileCtime !== false }
+    ]);
 
-    // created.useFileCtime
-    const createdUseFileCtimeSetting = new Setting(containerEl);
-    createdUseFileCtimeSetting.setName('使用文件创建时间');
-    createdUseFileCtimeSetting.setDesc('缺失 created 时使用文件创建时间填充');
-    createdUseFileCtimeSetting.settingEl.style.paddingLeft = '40px';
-    createdUseFileCtimeSetting.addToggle((toggle) =>
-      toggle
-        .setValue((subRules as any).created?.useFileCtime !== false)
-        .onChange(async (value) => {
-          this.ensureFrontmatterSubRules();
-          (this.plugin.settings.rules['frontmatter'] as any).subRules.created.useFileCtime = value;
-          await this.plugin.saveSettings();
-        })
-    );
+    // updated 折叠面板
+    this.renderCollapsibleSetting(containerEl, 'updated 时间', '每次格式化更新为当前时间', subRules.updated, async (value) => {
+      subRules.updated.enabled = value;
+      await this.plugin.saveSettings();
+    }, []);
 
-    // updated 子规则
-    const updatedSetting = new Setting(containerEl);
-    updatedSetting.setName('updated 时间');
-    updatedSetting.setDesc('每次格式化更新为当前时间');
-    updatedSetting.settingEl.style.paddingLeft = '20px';
-    updatedSetting.addToggle((toggle) =>
-      toggle
-        .setValue((subRules as any).updated?.enabled !== false)
-        .onChange(async (value) => {
-          this.ensureFrontmatterSubRules();
-          (this.plugin.settings.rules['frontmatter'] as any).subRules.updated.enabled = value;
-          await this.plugin.saveSettings();
-        })
-    );
+    // tags 折叠面板
+    this.renderCollapsibleSetting(containerEl, '标签 (tags)', '处理标签字段', subRules.tags, async (value) => {
+      subRules.tags.enabled = value;
+      await this.plugin.saveSettings();
+    }, [
+      { name: '确保时间标签', key: 'ensureTimeTags', desc: '自动添加 Year/Month 标签', value: subRules.tags?.ensureTimeTags !== false },
+      ...(this.plugin.settings.aiFrontmatter.enabled ? [
+        { name: 'AI 生成标签', key: 'ai.enabled', desc: '使用 AI 生成内容相关标签', value: subRules.tags?.ai?.enabled !== false }
+      ] : [])
+    ]);
 
-    // tags 子规则
-    const tagsSetting = new Setting(containerEl);
-    tagsSetting.setName('标签 (tags)');
-    tagsSetting.setDesc('处理标签字段');
-    tagsSetting.settingEl.style.paddingLeft = '20px';
-    tagsSetting.addToggle((toggle) =>
-      toggle
-        .setValue((subRules as any).tags?.enabled !== false)
-        .onChange(async (value) => {
-          this.ensureFrontmatterSubRules();
-          (this.plugin.settings.rules['frontmatter'] as any).subRules.tags.enabled = value;
-          await this.plugin.saveSettings();
-        })
-    );
+    // summary 折叠面板
+    this.renderCollapsibleSetting(containerEl, '摘要 (summary)', '处理摘要字段', subRules.summary, async (value) => {
+      subRules.summary.enabled = value;
+      await this.plugin.saveSettings();
+    }, [
+      ...(this.plugin.settings.aiFrontmatter.enabled ? [
+        { name: 'AI 生成摘要', key: 'ai.enabled', desc: '使用 AI 生成摘要（已���摘要不会被覆盖）', value: subRules.summary?.ai?.enabled !== false }
+      ] : [])
+    ]);
 
-    // tags.ensureTimeTags
-    const tagsTimeTagsSetting = new Setting(containerEl);
-    tagsTimeTagsSetting.setName('确保时间标签');
-    tagsTimeTagsSetting.setDesc('自动添加 Year/Month 标签');
-    tagsTimeTagsSetting.settingEl.style.paddingLeft = '40px';
-    tagsTimeTagsSetting.addToggle((toggle) =>
-      toggle
-        .setValue((subRules as any).tags?.ensureTimeTags !== false)
-        .onChange(async (value) => {
-          this.ensureFrontmatterSubRules();
-          (this.plugin.settings.rules['frontmatter'] as any).subRules.tags.ensureTimeTags = value;
-          await this.plugin.saveSettings();
-        })
-    );
+    // categories 折叠面板
+    this.renderCollapsibleSetting(containerEl, '分类 (categories)', '处理分类字段', subRules.categories, async (value) => {
+      subRules.categories.enabled = value;
+      await this.plugin.saveSettings();
+    }, [
+      ...(this.plugin.settings.aiFrontmatter.enabled ? [
+        { name: 'AI 生成分类', key: 'ai.enabled', desc: '使用 AI 生成分类', value: subRules.categories?.ai?.enabled !== false }
+      ] : [])
+    ]);
 
-    // tags.ai.enabled (仅当 aiFrontmatter 启用时)
-    if (this.plugin.settings.aiFrontmatter.enabled) {
-      const tagsAiSetting = new Setting(containerEl);
-      tagsAiSetting.setName('AI 生成标签');
-      tagsAiSetting.setDesc('使用 AI 生成内容相关标签');
-      tagsAiSetting.settingEl.style.paddingLeft = '40px';
-      tagsAiSetting.addToggle((toggle) =>
+    // title 折叠面板
+    this.renderCollapsibleSetting(containerEl, '标题 (title)', '处理标题字段', subRules.title, async (value) => {
+      subRules.title.enabled = value;
+      await this.plugin.saveSettings();
+    }, [
+      { name: '使用文件名作为标题', key: 'useFilename', desc: '缺失 title 时用文件名填充', value: subRules.title?.useFilename !== false }
+    ]);
+  }
+
+  /**
+   * 渲染可折叠的设置面板
+   */
+  private renderCollapsibleSetting(
+    containerEl: HTMLElement,
+    title: string,
+    desc: string,
+    config: any,
+    onToggle: (value: boolean) => Promise<void>,
+    subItems: { name: string; key: string; desc: string; value: boolean }[]
+  ): void {
+    const details = document.createElement('details');
+    details.style.marginBottom = '8px';
+
+    const summary = document.createElement('summary');
+    summary.style.cursor = 'pointer';
+    summary.style.listStyle = 'none';
+    summary.style.display = 'flex';
+    summary.style.alignItems = 'center';
+    summary.style.gap = '8px';
+    summary.style.marginBottom = '4px';
+
+    // 使用 checkbox 替代三角号
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = config?.enabled !== false;
+    checkbox.style.margin = '0';
+    checkbox.style.pointerEvents = 'none';
+    summary.appendChild(checkbox);
+
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = title;
+    titleSpan.style.fontWeight = '500';
+    summary.appendChild(titleSpan);
+
+    const descSpan = document.createElement('span');
+    descSpan.textContent = desc;
+    descSpan.style.fontSize = '12px';
+    descSpan.style.color = 'var(--text-muted)';
+    descSpan.style.marginLeft = 'auto';
+    summary.appendChild(descSpan);
+
+    details.appendChild(summary);
+
+    // 子选项内容
+    const content = document.createElement('div');
+    content.style.paddingLeft = '24px';
+    content.style.borderLeft = '2px solid var(--background-modifier-border)';
+    content.style.marginTop = '4px';
+
+    for (const item of subItems) {
+      const setting = new Setting(content);
+      setting.setName(item.name);
+      setting.setDesc(item.desc);
+      setting.addToggle((toggle) =>
         toggle
-          .setValue((subRules as any).tags?.ai?.enabled !== false)
+          .setValue(item.value)
           .onChange(async (value) => {
-            this.ensureFrontmatterSubRules();
-            (this.plugin.settings.rules['frontmatter'] as any).subRules.tags.ai.enabled = value;
+            const keys = item.key.split('.');
+            let obj = config;
+            for (let i = 0; i < keys.length - 1; i++) {
+              if (!obj[keys[i]]) obj[keys[i]] = {};
+              obj = obj[keys[i]];
+            }
+            obj[keys[keys.length - 1]] = value;
             await this.plugin.saveSettings();
           })
       );
     }
 
-    // summary 子规则
-    const summarySetting = new Setting(containerEl);
-    summarySetting.setName('摘要 (summary)');
-    summarySetting.setDesc('处理摘要字段');
-    summarySetting.settingEl.style.paddingLeft = '20px';
-    summarySetting.addToggle((toggle) =>
-      toggle
-        .setValue((subRules as any).summary?.enabled !== false)
-        .onChange(async (value) => {
-          this.ensureFrontmatterSubRules();
-          (this.plugin.settings.rules['frontmatter'] as any).subRules.summary.enabled = value;
-          await this.plugin.saveSettings();
-        })
-    );
-
-    // summary.ai.enabled (仅当 aiFrontmatter 启用时)
-    if (this.plugin.settings.aiFrontmatter.enabled) {
-      const summaryAiSetting = new Setting(containerEl);
-      summaryAiSetting.setName('AI 生成摘要');
-      summaryAiSetting.setDesc('使用 AI 生成摘要（已有摘要不会被覆盖）');
-      summaryAiSetting.settingEl.style.paddingLeft = '40px';
-      summaryAiSetting.addToggle((toggle) =>
-        toggle
-          .setValue((subRules as any).summary?.ai?.enabled !== false)
-          .onChange(async (value) => {
-            this.ensureFrontmatterSubRules();
-            (this.plugin.settings.rules['frontmatter'] as any).subRules.summary.ai.enabled = value;
-            await this.plugin.saveSettings();
-          })
-      );
+    if (subItems.length > 0) {
+      details.appendChild(content);
     }
 
-    // categories 子规则
-    const categoriesSetting = new Setting(containerEl);
-    categoriesSetting.setName('分类 (categories)');
-    categoriesSetting.setDesc('处理分类字段');
-    categoriesSetting.settingEl.style.paddingLeft = '20px';
-    categoriesSetting.addToggle((toggle) =>
-      toggle
-        .setValue((subRules as any).categories?.enabled !== false)
-        .onChange(async (value) => {
-          this.ensureFrontmatterSubRules();
-          (this.plugin.settings.rules['frontmatter'] as any).subRules.categories.enabled = value;
-          await this.plugin.saveSettings();
-        })
-    );
+    details.addEventListener('toggle', async () => {
+      const isOpen = details.open;
+      checkbox.checked = config?.enabled !== false;
+      if (subItems.length === 0) {
+        await onToggle(checkbox.checked);
+      }
+    });
 
-    // categories.ai.enabled (仅当 aiFrontmatter 启用时)
-    if (this.plugin.settings.aiFrontmatter.enabled) {
-      const categoriesAiSetting = new Setting(containerEl);
-      categoriesAiSetting.setName('AI 生成分类');
-      categoriesAiSetting.setDesc('使用 AI 生成分类');
-      categoriesAiSetting.settingEl.style.paddingLeft = '40px';
-      categoriesAiSetting.addToggle((toggle) =>
-        toggle
-          .setValue((subRules as any).categories?.ai?.enabled !== false)
-          .onChange(async (value) => {
-            this.ensureFrontmatterSubRules();
-            (this.plugin.settings.rules['frontmatter'] as any).subRules.categories.ai.enabled = value;
-            await this.plugin.saveSettings();
-          })
-      );
-    }
+    summary.addEventListener('click', (e) => {
+      e.preventDefault();
+      details.open = !details.open;
+      checkbox.checked = !checkbox.checked;
+      if (subItems.length === 0) {
+        onToggle(checkbox.checked);
+      }
+    });
 
-    // title 子规则
-    const titleSetting = new Setting(containerEl);
-    titleSetting.setName('标题 (title)');
-    titleSetting.setDesc('处理标题字段');
-    titleSetting.settingEl.style.paddingLeft = '20px';
-    titleSetting.addToggle((toggle) =>
-      toggle
-          .setValue((subRules as any).title?.enabled !== false)
-          .onChange(async (value) => {
-            this.ensureFrontmatterSubRules();
-            (this.plugin.settings.rules['frontmatter'] as any).subRules.title.enabled = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    // title.useFilename
-    const titleUseFilenameSetting = new Setting(containerEl);
-    titleUseFilenameSetting.setName('使用文件名作为标题');
-    titleUseFilenameSetting.setDesc('缺失 title 时用文件名填充');
-    titleUseFilenameSetting.settingEl.style.paddingLeft = '40px';
-    titleUseFilenameSetting.addToggle((toggle) =>
-      toggle
-        .setValue((subRules as any).title?.useFilename !== false)
-        .onChange(async (value) => {
-          this.ensureFrontmatterSubRules();
-          (this.plugin.settings.rules['frontmatter'] as any).subRules.title.useFilename = value;
-          await this.plugin.saveSettings();
-          })
-      );
+containerEl.appendChild(details);
   }
 
   /**

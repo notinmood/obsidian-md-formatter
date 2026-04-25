@@ -122,12 +122,12 @@ export class FrontmatterRule implements FormatRule {
 
         // 5. 执行 summary 子规则
         if (cfg.subRules.summary.enabled) {
-          await this.applySummary(clonedAst, yamlContent, aiService, cfg.subRules.summary.ai);
+          await this.applySummary(clonedAst, yamlContent, cfg.subRules.summary.ai, aiService);
         }
 
         // 6. 执行 categories 子规则
         if (cfg.subRules.categories.enabled) {
-          await this.applyCategories(yamlContent, aiService, cfg.subRules.categories.ai);
+          await this.applyCategories(yamlContent, cfg.subRules.categories.ai, aiService);
         }
 
         // 7. 执行 title 子规则
@@ -232,8 +232,8 @@ export class FrontmatterRule implements FormatRule {
   private async applySummary(
     ast: AstNode,
     yamlContent: Record<string, unknown>,
-    aiService?: AIService,
-    aiConfig: FrontmatterSubRules['summary']['ai']
+    aiConfig: FrontmatterSubRules['summary']['ai'],
+    aiService?: AIService
   ): Promise<void> {
     // 已有 summary 则不覆盖
     if ('summary' in yamlContent && yamlContent.summary) {
@@ -259,8 +259,8 @@ export class FrontmatterRule implements FormatRule {
    */
   private async applyCategories(
     yamlContent: Record<string, unknown>,
-    aiService?: AIService,
-    aiConfig: FrontmatterSubRules['categories']['ai']
+    aiConfig: FrontmatterSubRules['categories']['ai'],
+    aiService?: AIService
   ): Promise<void> {
     // AI 生成分类
     if (aiConfig.enabled && aiService) {
