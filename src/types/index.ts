@@ -48,10 +48,82 @@ export interface FormatRule {
 
 /**
  * 规则配置
+ * Frontmatter 规则的配置支持 subRules 嵌套结构
  */
 export interface RuleConfig {
   enabled: boolean;
   [key: string]: unknown;
+}
+
+/**
+ * Frontmatter 子规则配置 - 时间字段
+ */
+export interface FrontmatterCreatedConfig {
+  enabled: boolean;
+  useFileCtime: boolean;
+}
+
+export interface FrontmatterUpdatedConfig {
+  enabled: boolean;
+}
+
+/**
+ * Frontmatter 子规则配置 - 标签
+ */
+export interface FrontmatterTagsConfig {
+  enabled: boolean;
+  ensureTimeTags: boolean;
+  ai: {
+    enabled: boolean;
+  };
+}
+
+/**
+ * Frontmatter 子规则配置 - 摘要
+ */
+export interface FrontmatterSummaryConfig {
+  enabled: boolean;
+  ai: {
+    enabled: boolean;
+  };
+}
+
+/**
+ * Frontmatter 子规则配置 - 分类
+ */
+export interface FrontmatterCategoriesConfig {
+  enabled: boolean;
+  ai: {
+    enabled: boolean;
+  };
+}
+
+/**
+ * Frontmatter 子规则配置 - 标题
+ */
+export interface FrontmatterTitleConfig {
+  enabled: boolean;
+  useFilename: boolean;
+}
+
+/**
+ * Frontmatter 子规则配置集合
+ */
+export interface FrontmatterSubRules {
+  created: FrontmatterCreatedConfig;
+  updated: FrontmatterUpdatedConfig;
+  tags: FrontmatterTagsConfig;
+  summary: FrontmatterSummaryConfig;
+  categories: FrontmatterCategoriesConfig;
+  title: FrontmatterTitleConfig;
+}
+
+/**
+ * Frontmatter 规则完整配置
+ */
+export interface FrontmatterConfig extends RuleConfig {
+  normalizeFields: boolean;
+  subRules: FrontmatterSubRules;
 }
 
 /**
