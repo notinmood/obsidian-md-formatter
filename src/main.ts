@@ -1,5 +1,6 @@
 // src/main.ts
 import { Plugin, Notice, TFile, Editor, MarkdownView } from 'obsidian';
+import { parse, stringify } from 'yaml';
 import { DEFAULT_SETTINGS, PluginSettings } from './types';
 import { RuleRegistry } from './core/RuleRegistry';
 import { Formatter } from './core/Formatter';
@@ -8,6 +9,7 @@ import { registerBuiltinRules } from './rules';
 import { SettingsTab } from './ui/SettingsTab';
 import { showNotice, createProgressCallback } from './utils/notice';
 import { AIServiceImpl } from './services';
+import { MetadataPreviewModal } from './modals/MetadataPreviewModal';
 
 export default class MarkdownFormatterPlugin extends Plugin {
   settings: PluginSettings = DEFAULT_SETTINGS;
@@ -100,19 +102,55 @@ export default class MarkdownFormatterPlugin extends Plugin {
     const result = await this.processor.processContent(content, this.settings, progressCallback, file.basename, fileInfo);
 
     if (result.success && result.content) {
-      const currentContent = editor.getValue();
-      editor.transaction({
-        changes: [{
-          from: { line: 0, ch: 0 },
-          to: editor.offsetToPos(currentContent.length),
-          text: result.content,
-        }],
-        selection: { from: cursor, to: cursor },
-      });
-      showNotice(`格式化完成，应用了 ${result.stats?.rulesApplied || 0} 条规则`);
+      const aiConfig = this.settings.aiFrontmatter;
+      const needPreview = aiConfig.enabled && aiConfig.showPreview && this.createAIService() !== undefined;
+
+      if (needPreview) {
+        const match = result.content.match(/^---\s*\n([\s\S]*?)\n---/);
+        if (match) {
+          try {
+            const formattedFrontmatter = parse(match[1]) as Record<string, unknown>;
+            new MetadataPreviewModal(this.app, formattedFrontmatter, (previewResult) => {
+              if (previewResult.confirmed && previewResult.editedFrontmatter) {
+                const newYaml = stringify(previewResult.editedFrontmatter, {
+                  lineWidth: 0,
+                  defaultStringType: 'PLAIN',
+                  defaultKeyType: 'PLAIN',
+                }).trim();
+                const newContent = result.content!.replace(/^---\s*\n[\s\S]*?\n---/, `---\n${newYaml}\n---`);
+                this.applyFormatResult(editor, newContent, cursor);
+                showNotice('格式化完成');
+              } else {
+                showNotice('格式化已取消');
+              }
+            }).open();
+          } catch {
+            this.applyFormatResult(editor, result.content, cursor);
+            showNotice(`格式化完成，应用了 ${result.stats?.rulesApplied || 0} 条规则`);
+          }
+        } else {
+          this.applyFormatResult(editor, result.content, cursor);
+          showNotice(`格式化完成，应用了 ${result.stats?.rulesApplied || 0} 条规则`);
+        }
+      } else {
+        this.applyFormatResult(editor, result.content, cursor);
+        showNotice(`格式化完成，应用了 ${result.stats?.rulesApplied || 0} 条规则`);
+      }
     } else {
       showNotice(`格式化失败: ${result.error || '未知错误'}`);
     }
+  }
+
+  private applyFormatResult(editor: Editor, content: string, cursor: { line: number; ch: number }): void {
+    const currentContent = editor.getValue();
+    editor.transaction({
+      changes: [{
+        from: { line: 0, ch: 0 },
+        to: editor.offsetToPos(currentContent.length),
+        text: content,
+      }],
+      selection: { from: cursor, to: cursor },
+    });
   }
 
   /**
