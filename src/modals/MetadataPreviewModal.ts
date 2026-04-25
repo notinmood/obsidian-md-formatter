@@ -1,5 +1,39 @@
 import { App, Modal } from 'obsidian';
 
+const PREVIEW_STYLES = `
+  .md-formatter-preview-readonly {
+    margin-bottom: 16px;
+  }
+  .md-formatter-preview-line {
+    display: flex; gap: 8px; padding: 4px 0;
+  }
+  .md-formatter-preview-key {
+    min-width: 120px; color: var(--text-muted); font-size: 14px;
+  }
+  .md-formatter-preview-value {
+    font-size: 14px;
+  }
+  .md-formatter-preview-field {
+    display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px;
+  }
+  .md-formatter-preview-label {
+    min-width: 120px; font-size: 14px; padding-top: 6px;
+  }
+  .md-formatter-preview-input, .md-formatter-preview-textarea {
+    width: 100%; min-width: 200px;
+    padding: 6px 8px; border-radius: 4px;
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 14px;
+  }
+  .md-formatter-preview-textarea {
+    min-height: 60px; resize: vertical;
+  }
+`;
+
+let previewStylesInjected = false;
+
 export interface PreviewResult {
   confirmed: boolean;
   editedFrontmatter: Record<string, unknown> | null;
@@ -37,6 +71,13 @@ export class MetadataPreviewModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
+    if (!previewStylesInjected) {
+      const style = document.createElement('style');
+      style.textContent = PREVIEW_STYLES;
+      document.head.appendChild(style);
+      previewStylesInjected = true;
+    }
+
     contentEl.createEl('h2', { text: '格式化预览' });
 
     // 只读字段
@@ -61,8 +102,8 @@ export class MetadataPreviewModal extends Modal {
     editableContainer.createEl('h3', { text: 'AI 生成字段（可编辑）' });
 
     // tags
-    const tagsContainer = editableContainer.createDiv();
-    tagsContainer.createEl('label', { text: '标签 (tags):' });
+    const tagsContainer = editableContainer.createDiv({ cls: 'md-formatter-preview-field' });
+    tagsContainer.createEl('label', { text: '标签 (tags):', cls: 'md-formatter-preview-label' });
     const tagsInput = tagsContainer.createEl('input', {
       type: 'text',
       value: this.editedTags.join(', '),
@@ -75,20 +116,9 @@ export class MetadataPreviewModal extends Modal {
         .filter(t => t.length > 0);
     });
 
-    // summary
-    const summaryContainer = editableContainer.createDiv();
-    summaryContainer.createEl('label', { text: '摘要 (summary):' });
-    const summaryInput = summaryContainer.createEl('textarea', {
-      cls: 'md-formatter-preview-textarea',
-    });
-    summaryInput.value = this.editedSummary;
-    summaryInput.addEventListener('input', (e) => {
-      this.editedSummary = (e.target as HTMLTextAreaElement).value;
-    });
-
     // categories
-    const categoriesContainer = editableContainer.createDiv();
-    categoriesContainer.createEl('label', { text: '分类 (categories):' });
+    const categoriesContainer = editableContainer.createDiv({ cls: 'md-formatter-preview-field' });
+    categoriesContainer.createEl('label', { text: '分类 (categories):', cls: 'md-formatter-preview-label' });
     const categoriesInput = categoriesContainer.createEl('input', {
       type: 'text',
       value: this.editedCategories.join(', '),
@@ -99,6 +129,17 @@ export class MetadataPreviewModal extends Modal {
         .split(',')
         .map(t => t.trim())
         .filter(t => t.length > 0);
+    });
+
+    // summary
+    const summaryContainer = editableContainer.createDiv({ cls: 'md-formatter-preview-field' });
+    summaryContainer.createEl('label', { text: '摘要 (summary):', cls: 'md-formatter-preview-label' });
+    const summaryInput = summaryContainer.createEl('textarea', {
+      cls: 'md-formatter-preview-textarea',
+    });
+    summaryInput.value = this.editedSummary;
+    summaryInput.addEventListener('input', (e) => {
+      this.editedSummary = (e.target as HTMLTextAreaElement).value;
     });
 
     // 按钮
