@@ -255,15 +255,11 @@ export class SettingsTab extends PluginSettingTab {
     summary.style.alignItems = 'center';
     summary.style.gap = '8px';
     summary.style.marginBottom = '4px';
+    summary.style.padding = '4px 8px';
+    summary.style.borderRadius = '4px';
+    summary.style.background = 'var(--background-secondary)';
 
-    // 使用 checkbox 替代三角号
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = config?.enabled !== false;
-    checkbox.style.margin = '0';
-    checkbox.style.pointerEvents = 'none';
-    summary.appendChild(checkbox);
-
+    // 标题（无复选框）
     const titleSpan = document.createElement('span');
     titleSpan.textContent = title;
     titleSpan.style.fontWeight = '500';
@@ -308,24 +304,12 @@ export class SettingsTab extends PluginSettingTab {
       details.appendChild(content);
     }
 
-    details.addEventListener('toggle', async () => {
-      const isOpen = details.open;
-      checkbox.checked = config?.enabled !== false;
-      if (subItems.length === 0) {
-        await onToggle(checkbox.checked);
-      }
-    });
-
     summary.addEventListener('click', (e) => {
       e.preventDefault();
       details.open = !details.open;
-      checkbox.checked = !checkbox.checked;
-      if (subItems.length === 0) {
-        onToggle(checkbox.checked);
-      }
     });
 
-containerEl.appendChild(details);
+    containerEl.appendChild(details);
   }
 
   /**
