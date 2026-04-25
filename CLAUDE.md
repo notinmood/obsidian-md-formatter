@@ -44,9 +44,12 @@ The plugin follows a layered architecture:
 - Rules transform the remark AST using `unist-util-visit` for traversal
 - Built-in rules (priority order): Frontmatter(5), Heading(10), Paragraph(20), List(30), CodeBlock(40), Table(50), Link(60)
 - Register new rules via `registerBuiltinRules()` in `index.ts`
-- **FrontmatterRule**: Two-phase logic:
-  - **Deterministic (always runs)**: field name normalization (create→created, update→updated, tag→tags), auto-fill `created` from file ctime if missing, always update `updated` to current time, ensure time tags (Year/YYYY, Month/MM) exist in tags, add title from filename if missing, preserve all other frontmatter fields
-  - **AI (runs when AIService available)**: generate content tags (two-level format like 科技/AI), summary (don't overwrite existing), categories (overwrite). When AI unavailable, skip these fields and only ensure time tags exist
+- **FrontmatterRule**: 支持子规则嵌套配置
+  - 主开关：`enabled`
+  - 子规则：`subRules.created`、`subRules.updated`、`subRules.tags`、`subRules.summary`、`subRules.categories`、`subRules.title`
+  - 每个子规则独立开关，AI 部分由 `subRules.xxx.ai.enabled` 控制（依赖 aiService）
+  - 字段规范化：`normalizeFields` 控制（create→created, update→updated, tag→tags）
+  - 确定性逻辑不依赖 AI 服务，AI 部分在服务不可用时静默跳过
 
 **Services Layer** (`src/services/`)
 - `AIService.ts`: AIServiceImpl implements AIService interface, calls OpenAI-compatible /chat/completions API via Obsidian requestUrl, supports multiple providers with failover (tries providers in order, returns null if all fail)
