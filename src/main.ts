@@ -112,7 +112,9 @@ export default class MarkdownFormatterPlugin extends Plugin {
             const formattedFrontmatter = parse(match[1]) as Record<string, unknown>;
             new MetadataPreviewModal(this.app, formattedFrontmatter, (previewResult) => {
               if (previewResult.confirmed && previewResult.editedFrontmatter) {
-                const newYaml = stringify(previewResult.editedFrontmatter, {
+                const ordered = this.orderFrontmatterFields(previewResult.editedFrontmatter);
+                console.log('[MD Formatter] 预览确认后 frontmatter:', JSON.stringify(ordered));
+                const newYaml = stringify(ordered, {
                   lineWidth: 0,
                   defaultStringType: 'PLAIN',
                   defaultKeyType: 'PLAIN',
@@ -151,6 +153,23 @@ export default class MarkdownFormatterPlugin extends Plugin {
       }],
       selection: { from: cursor, to: cursor },
     });
+  }
+
+  private orderFrontmatterFields(fm: Record<string, unknown>): Record<string, unknown> {
+    const orderedKeys = ['title', 'created', 'updated', 'categories', 'tags'];
+    const knownKeys = new Set([...orderedKeys, 'summary']);
+    const otherKeys = Object.keys(fm).filter(k => !knownKeys.has(k));
+
+    const result: Record<string, unknown> = {};
+    for (const key of orderedKeys) {
+      if (key in fm) result[key] = fm[key];
+    }
+    for (const key of otherKeys) {
+      result[key] = fm[key];
+    }
+    if ('summary' in fm) result['summary'] = fm['summary'];
+
+    return result;
   }
 
   /**
