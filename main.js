@@ -1514,7 +1514,7 @@ var require_stringify = __commonJS({
         props.push(doc.directives.tagString(tag));
       return props.join(" ");
     }
-    function stringify3(item, ctx, onComment, onChompKeep) {
+    function stringify2(item, ctx, onComment, onChompKeep) {
       var _a, _b;
       if (identity.isPair(item))
         return item.toString(ctx, onComment, onChompKeep);
@@ -1544,7 +1544,7 @@ var require_stringify = __commonJS({
 ${ctx.indent}${str}`;
     }
     exports2.createStringifyContext = createStringifyContext;
-    exports2.stringify = stringify3;
+    exports2.stringify = stringify2;
   }
 });
 
@@ -1554,7 +1554,7 @@ var require_stringifyPair = __commonJS({
     "use strict";
     var identity = require_identity();
     var Scalar = require_Scalar();
-    var stringify3 = require_stringify();
+    var stringify2 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyPair({ key, value: value2 }, ctx, onComment, onChompKeep) {
       var _a, _b;
@@ -1577,7 +1577,7 @@ var require_stringifyPair = __commonJS({
       });
       let keyCommentDone = false;
       let chompKeep = false;
-      let str = stringify3.stringify(key, ctx, () => keyCommentDone = true, () => chompKeep = true);
+      let str = stringify2.stringify(key, ctx, () => keyCommentDone = true, () => chompKeep = true);
       if (!explicitKey && !ctx.inFlow && str.length > 1024) {
         if (simpleKeys)
           throw new Error("With simple keys, single line scalar must not span more than 1024 characters");
@@ -1629,7 +1629,7 @@ ${indent}:`;
         ctx.indent = ctx.indent.substring(2);
       }
       let valueCommentDone = false;
-      const valueStr = stringify3.stringify(value2, ctx, () => valueCommentDone = true, () => chompKeep = true);
+      const valueStr = stringify2.stringify(value2, ctx, () => valueCommentDone = true, () => chompKeep = true);
       let ws = " ";
       if (keyComment || vsb || vcb) {
         ws = vsb ? "\n" : "";
@@ -1767,7 +1767,7 @@ var require_addPairToJSMap = __commonJS({
     "use strict";
     var log = require_log();
     var merge = require_merge();
-    var stringify3 = require_stringify();
+    var stringify2 = require_stringify();
     var identity = require_identity();
     var toJS = require_toJS();
     function addPairToJSMap(ctx, map4, { key, value: value2 }) {
@@ -1803,7 +1803,7 @@ var require_addPairToJSMap = __commonJS({
       if (typeof jsKey !== "object")
         return String(jsKey);
       if (identity.isNode(key) && (ctx == null ? void 0 : ctx.doc)) {
-        const strCtx = stringify3.createStringifyContext(ctx.doc, {});
+        const strCtx = stringify2.createStringifyContext(ctx.doc, {});
         strCtx.anchors = /* @__PURE__ */ new Set();
         for (const node2 of ctx.anchors.keys())
           strCtx.anchors.add(node2.anchor);
@@ -1870,13 +1870,13 @@ var require_stringifyCollection = __commonJS({
   "node_modules/yaml/dist/stringify/stringifyCollection.js"(exports2) {
     "use strict";
     var identity = require_identity();
-    var stringify3 = require_stringify();
+    var stringify2 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyCollection(collection, ctx, options) {
       var _a;
       const flow3 = (_a = ctx.inFlow) != null ? _a : collection.flow;
-      const stringify4 = flow3 ? stringifyFlowCollection : stringifyBlockCollection;
-      return stringify4(collection, ctx, options);
+      const stringify3 = flow3 ? stringifyFlowCollection : stringifyBlockCollection;
+      return stringify3(collection, ctx, options);
     }
     function stringifyBlockCollection({ comment, items }, ctx, { blockItemPrefix, flowChars, itemIndent, onChompKeep, onComment }) {
       const { indent, options: { commentString } } = ctx;
@@ -1901,7 +1901,7 @@ var require_stringifyCollection = __commonJS({
           }
         }
         chompKeep = false;
-        let str2 = stringify3.stringify(item, itemCtx, () => comment2 = null, () => chompKeep = true);
+        let str2 = stringify2.stringify(item, itemCtx, () => comment2 = null, () => chompKeep = true);
         if (comment2)
           str2 += stringifyComment.lineComment(str2, itemIndent, commentString(comment2));
         if (chompKeep && comment2)
@@ -1968,7 +1968,7 @@ ${indent}${line}` : "\n";
         }
         if (comment)
           reqNewline = true;
-        let str = stringify3.stringify(item, itemCtx, () => comment = null);
+        let str = stringify2.stringify(item, itemCtx, () => comment = null);
         reqNewline || (reqNewline = lines.length > linesAtValue || str.includes("\n"));
         if (i < items.length - 1) {
           str += ",";
@@ -3335,7 +3335,7 @@ var require_stringifyDocument = __commonJS({
   "node_modules/yaml/dist/stringify/stringifyDocument.js"(exports2) {
     "use strict";
     var identity = require_identity();
-    var stringify3 = require_stringify();
+    var stringify2 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyDocument(doc, options) {
       var _a;
@@ -3351,7 +3351,7 @@ var require_stringifyDocument = __commonJS({
       }
       if (hasDirectives)
         lines.push("---");
-      const ctx = stringify3.createStringifyContext(doc, options);
+      const ctx = stringify2.createStringifyContext(doc, options);
       const { commentString } = ctx.options;
       if (doc.commentBefore) {
         if (lines.length !== 1)
@@ -3373,7 +3373,7 @@ var require_stringifyDocument = __commonJS({
           contentComment = doc.contents.comment;
         }
         const onChompKeep = contentComment ? void 0 : () => chompKeep = true;
-        let body = stringify3.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
+        let body = stringify2.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
         if (contentComment)
           body += stringifyComment.lineComment(body, "", commentString(contentComment));
         if ((body[0] === "|" || body[0] === ">") && lines[lines.length - 1] === "---") {
@@ -3381,7 +3381,7 @@ var require_stringifyDocument = __commonJS({
         } else
           lines.push(body);
       } else {
-        lines.push(stringify3.stringify(doc.contents, ctx));
+        lines.push(stringify2.stringify(doc.contents, ctx));
       }
       if ((_a = doc.directives) == null ? void 0 : _a.docEnd) {
         if (doc.comment) {
@@ -5524,7 +5524,7 @@ var require_cst_scalar = __commonJS({
 var require_cst_stringify = __commonJS({
   "node_modules/yaml/dist/parse/cst-stringify.js"(exports2) {
     "use strict";
-    var stringify3 = (cst) => "type" in cst ? stringifyToken(cst) : stringifyItem(cst);
+    var stringify2 = (cst) => "type" in cst ? stringifyToken(cst) : stringifyItem(cst);
     function stringifyToken(token) {
       switch (token.type) {
         case "block-scalar": {
@@ -5577,7 +5577,7 @@ var require_cst_stringify = __commonJS({
         res += stringifyToken(value2);
       return res;
     }
-    exports2.stringify = stringify3;
+    exports2.stringify = stringify2;
   }
 });
 
@@ -7288,7 +7288,7 @@ var require_public_api = __commonJS({
       }
       return doc.toJS(Object.assign({ reviver: _reviver }, options));
     }
-    function stringify3(value2, replacer, options) {
+    function stringify2(value2, replacer, options) {
       var _a;
       let _replacer = null;
       if (typeof replacer === "function" || Array.isArray(replacer)) {
@@ -7314,7 +7314,7 @@ var require_public_api = __commonJS({
     exports2.parse = parse4;
     exports2.parseAllDocuments = parseAllDocuments;
     exports2.parseDocument = parseDocument;
-    exports2.stringify = stringify3;
+    exports2.stringify = stringify2;
   }
 });
 
@@ -18276,18 +18276,22 @@ var FrontmatterRule = class {
         if (cfg.subRules.summary.enabled) {
           this.applySummary(yamlContent, cfg.subRules.summary.ai, aiResult);
         }
-        if (cfg.subRules.categories.enabled) {
-          this.applyCategories(yamlContent, cfg.subRules.categories.ai, aiResult);
+        if (cfg.subRules.categories.ai.enabled && aiResult && aiResult.categories.length > 0) {
+          yamlContent.categories = aiResult.categories;
         }
         if (cfg.subRules.title.enabled && !("title" in yamlContent) && filename && cfg.subRules.title.useFilename) {
           yamlContent.title = filename;
         }
-        yamlNode.value = (0, import_yaml.stringify)(yamlContent, {
-          lineWidth: 0,
-          // 不自动换行
-          defaultStringType: "PLAIN",
-          defaultKeyType: "PLAIN"
-        }).trim();
+        const ordered = this.orderFields(yamlContent);
+        const doc = new import_yaml.Document(ordered);
+        for (const key of ["tags", "categories"]) {
+          if (key in ordered && Array.isArray(ordered[key])) {
+            const node2 = doc.get(key, true);
+            if (node2)
+              node2.flow = true;
+          }
+        }
+        yamlNode.value = doc.toString({ lineWidth: 0 }).trim();
       }
     } catch (e) {
     }
@@ -18382,9 +18386,30 @@ var FrontmatterRule = class {
    * 应用 categories 子规则
    */
   applyCategories(yamlContent, aiConfig, aiResult) {
-    if (aiConfig.enabled && aiResult) {
+    if (aiConfig.enabled && aiResult && aiResult.categories.length > 0) {
       yamlContent.categories = aiResult.categories;
     }
+  }
+  /**
+   * 按 frontmatter 字段规范顺序重排：
+   * title → created → updated → categories → tags → (其他字段) → summary
+   * summary 始终为最后一个字段
+   */
+  orderFields(yamlContent) {
+    const orderedKeys = ["title", "created", "updated", "categories", "tags"];
+    const knownKeys = /* @__PURE__ */ new Set([...orderedKeys, "summary"]);
+    const otherKeys = Object.keys(yamlContent).filter((k) => !knownKeys.has(k));
+    const result = {};
+    for (const key of orderedKeys) {
+      if (key in yamlContent)
+        result[key] = yamlContent[key];
+    }
+    for (const key of otherKeys) {
+      result[key] = yamlContent[key];
+    }
+    if ("summary" in yamlContent)
+      result["summary"] = yamlContent["summary"];
+    return result;
   }
   formatDate(timestamp) {
     const date = new Date(timestamp);
@@ -19037,7 +19062,7 @@ var SettingsTab = class extends import_obsidian.PluginSettingTab {
     }
     if (this.plugin.settings.aiFrontmatter.enabled) {
       this.renderCollapsibleSetting(containerEl, "\u5206\u7C7B (categories)", "\u5904\u7406\u5206\u7C7B\u5B57\u6BB5", subRules, [
-        { name: "AI \u751F\u6210\u5206\u7C7B", key: "categories.ai.enabled", desc: "\u4F7F\u7528 AI \u751F\u6210\u5206\u7C7B", value: getSubVal("categories.ai.enabled", true) }
+        { name: "AI \u751F\u6210\u5206\u7C7B", key: "categories.ai.enabled", desc: "\u4F7F\u7528 AI \u751F\u6210\u5206\u7C7B\uFF08categories \u5B8C\u5168\u7531 AI \u751F\u6210\uFF09", value: getSubVal("categories.ai.enabled", true) }
       ]);
     }
     this.renderCollapsibleSetting(containerEl, "\u6807\u9898 (title)", "\u5904\u7406\u6807\u9898\u5B57\u6BB5", subRules, [
@@ -19382,11 +19407,12 @@ ${this.config.customPrompt}`;
       if (!jsonMatch)
         return null;
       const parsed = JSON.parse(jsonMatch[0]);
-      return {
+      const result = {
         tags: Array.isArray(parsed.tags) ? parsed.tags : [],
-        summary: parsed.summary || "",
-        categories: Array.isArray(parsed.categories) ? parsed.categories : []
+        summary: parsed.summary || parsed.Summary || "",
+        categories: Array.isArray(parsed.categories) ? parsed.categories : Array.isArray(parsed.category) ? parsed.category : []
       };
+      return result;
     } catch (e) {
       return null;
     }
@@ -19395,6 +19421,38 @@ ${this.config.customPrompt}`;
 
 // src/modals/MetadataPreviewModal.ts
 var import_obsidian4 = require("obsidian");
+var PREVIEW_STYLES = `
+  .md-formatter-preview-readonly {
+    margin-bottom: 16px;
+  }
+  .md-formatter-preview-line {
+    display: flex; gap: 8px; padding: 4px 0;
+  }
+  .md-formatter-preview-key {
+    min-width: 120px; color: var(--text-muted); font-size: 14px;
+  }
+  .md-formatter-preview-value {
+    font-size: 14px;
+  }
+  .md-formatter-preview-field {
+    display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px;
+  }
+  .md-formatter-preview-label {
+    min-width: 120px; font-size: 14px; padding-top: 6px;
+  }
+  .md-formatter-preview-input, .md-formatter-preview-textarea {
+    width: 100%; min-width: 200px;
+    padding: 6px 8px; border-radius: 4px;
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 14px;
+  }
+  .md-formatter-preview-textarea {
+    min-height: 60px; resize: vertical;
+  }
+`;
+var previewStylesInjected = false;
 var MetadataPreviewModal = class extends import_obsidian4.Modal {
   constructor(app, frontmatter2, onConfirm) {
     super(app);
@@ -19407,6 +19465,12 @@ var MetadataPreviewModal = class extends import_obsidian4.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
+    if (!previewStylesInjected) {
+      const style = document.createElement("style");
+      style.textContent = PREVIEW_STYLES;
+      document.head.appendChild(style);
+      previewStylesInjected = true;
+    }
     contentEl.createEl("h2", { text: "\u683C\u5F0F\u5316\u9884\u89C8" });
     const readonlyKeys = Object.keys(this.frontmatter).filter(
       (k) => k !== "tags" && k !== "summary" && k !== "categories"
@@ -19423,8 +19487,8 @@ var MetadataPreviewModal = class extends import_obsidian4.Modal {
     }
     const editableContainer = contentEl.createDiv({ cls: "md-formatter-preview-editable" });
     editableContainer.createEl("h3", { text: "AI \u751F\u6210\u5B57\u6BB5\uFF08\u53EF\u7F16\u8F91\uFF09" });
-    const tagsContainer = editableContainer.createDiv();
-    tagsContainer.createEl("label", { text: "\u6807\u7B7E (tags):" });
+    const tagsContainer = editableContainer.createDiv({ cls: "md-formatter-preview-field" });
+    tagsContainer.createEl("label", { text: "\u6807\u7B7E (tags):", cls: "md-formatter-preview-label" });
     const tagsInput = tagsContainer.createEl("input", {
       type: "text",
       value: this.editedTags.join(", "),
@@ -19433,17 +19497,8 @@ var MetadataPreviewModal = class extends import_obsidian4.Modal {
     tagsInput.addEventListener("input", (e) => {
       this.editedTags = e.target.value.split(",").map((t) => t.trim()).filter((t) => t.length > 0);
     });
-    const summaryContainer = editableContainer.createDiv();
-    summaryContainer.createEl("label", { text: "\u6458\u8981 (summary):" });
-    const summaryInput = summaryContainer.createEl("textarea", {
-      cls: "md-formatter-preview-textarea"
-    });
-    summaryInput.value = this.editedSummary;
-    summaryInput.addEventListener("input", (e) => {
-      this.editedSummary = e.target.value;
-    });
-    const categoriesContainer = editableContainer.createDiv();
-    categoriesContainer.createEl("label", { text: "\u5206\u7C7B (categories):" });
+    const categoriesContainer = editableContainer.createDiv({ cls: "md-formatter-preview-field" });
+    categoriesContainer.createEl("label", { text: "\u5206\u7C7B (categories):", cls: "md-formatter-preview-label" });
     const categoriesInput = categoriesContainer.createEl("input", {
       type: "text",
       value: this.editedCategories.join(", "),
@@ -19451,6 +19506,15 @@ var MetadataPreviewModal = class extends import_obsidian4.Modal {
     });
     categoriesInput.addEventListener("input", (e) => {
       this.editedCategories = e.target.value.split(",").map((t) => t.trim()).filter((t) => t.length > 0);
+    });
+    const summaryContainer = editableContainer.createDiv({ cls: "md-formatter-preview-field" });
+    summaryContainer.createEl("label", { text: "\u6458\u8981 (summary):", cls: "md-formatter-preview-label" });
+    const summaryInput = summaryContainer.createEl("textarea", {
+      cls: "md-formatter-preview-textarea"
+    });
+    summaryInput.value = this.editedSummary;
+    summaryInput.addEventListener("input", (e) => {
+      this.editedSummary = e.target.value;
     });
     const buttonContainer = contentEl.createDiv({ cls: "modal-button-container" });
     const confirmButton = buttonContainer.createEl("button", {
@@ -19564,11 +19628,16 @@ var MarkdownFormatterPlugin = class extends import_obsidian5.Plugin {
             const formattedFrontmatter = (0, import_yaml2.parse)(match[1]);
             new MetadataPreviewModal(this.app, formattedFrontmatter, (previewResult) => {
               if (previewResult.confirmed && previewResult.editedFrontmatter) {
-                const newYaml = (0, import_yaml2.stringify)(previewResult.editedFrontmatter, {
-                  lineWidth: 0,
-                  defaultStringType: "PLAIN",
-                  defaultKeyType: "PLAIN"
-                }).trim();
+                const ordered = this.orderFrontmatterFields(previewResult.editedFrontmatter);
+                const doc = new import_yaml2.Document(ordered);
+                for (const key of ["tags", "categories"]) {
+                  if (key in ordered && Array.isArray(ordered[key])) {
+                    const node2 = doc.get(key, true);
+                    if (node2)
+                      node2.flow = true;
+                  }
+                }
+                const newYaml = doc.toString({ lineWidth: 0 }).trim();
                 const newContent = result.content.replace(/^---\s*\n[\s\S]*?\n---/, `---
 ${newYaml}
 ---`);
@@ -19604,6 +19673,22 @@ ${newYaml}
       }],
       selection: { from: cursor, to: cursor }
     });
+  }
+  orderFrontmatterFields(fm) {
+    const orderedKeys = ["title", "created", "updated", "categories", "tags"];
+    const knownKeys = /* @__PURE__ */ new Set([...orderedKeys, "summary"]);
+    const otherKeys = Object.keys(fm).filter((k) => !knownKeys.has(k));
+    const result = {};
+    for (const key of orderedKeys) {
+      if (key in fm)
+        result[key] = fm[key];
+    }
+    for (const key of otherKeys) {
+      result[key] = fm[key];
+    }
+    if ("summary" in fm)
+      result["summary"] = fm["summary"];
+    return result;
   }
   /**
    * 格式化选中内容
