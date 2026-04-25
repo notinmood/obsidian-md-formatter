@@ -118,8 +118,8 @@ export class FrontmatterRule implements FormatRule {
           yamlContent.title = filename;
         }
 
-        // 重新生成 YAML 字符串
-        yamlNode.value = stringify(yamlContent, {
+        // 重新生成 YAML 字符串（按指定顺序排列字段）
+        yamlNode.value = stringify(this.orderFields(yamlContent), {
           lineWidth: 0,  // 不自动换行
           defaultStringType: 'PLAIN',
           defaultKeyType: 'PLAIN',
@@ -256,9 +256,31 @@ export class FrontmatterRule implements FormatRule {
     aiConfig: FrontmatterSubRules['categories']['ai'],
     aiResult: AIMetadataResult | null,
   ): void {
-    if (aiConfig.enabled && aiResult) {
+    if (aiConfig.enabled && aiResult && aiResult.categories.length > 0) {
       yamlContent.categories = aiResult.categories;
     }
+  }
+
+  /**
+   * 按 frontmatter 字段规范顺序重排：
+   * title → created → updated → categories → tags → (其他字段) → summary
+   * summary 始终为最后一个字段
+   */
+  private orderFields(yamlContent: Record<string, unknown>): Record<string, unknown> {
+    const orderedKeys = ['title', 'created', 'updated', 'categories', 'tags'];
+    const knownKeys = new Set([...orderedKeys, 'summary']);
+    const otherKeys = Object.keys(yamlContent).filter(k => !knownKeys.has(k));
+
+    const result: Record<string, unknown> = {};
+    for (const key of orderedKeys) {
+      if (key in yamlContent) result[key] = yamlContent[key];
+    }
+    for (const key of otherKeys) {
+      result[key] = yamlContent[key];
+    }
+    if ('summary' in yamlContent) result['summary'] = yamlContent['summary'];
+
+    return result;
   }
 
   private formatDate(timestamp: number): string {
