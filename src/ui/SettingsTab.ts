@@ -173,12 +173,14 @@ export class SettingsTab extends PluginSettingTab {
 
     if (!mainEnabled) return;
 
-    // 字段规范化折叠面板
-    this.renderCollapsibleSetting(containerEl, '字段规范化', 'create→created, update→updated, tag→tags', { enabled: frontmatterRule.normalizeFields !== false }, async (value) => {
+    // 字段规范化折叠面板（带开关）
+    this.renderCollapsibleSetting(containerEl, '字段规范化', 'create→created, update→updated, tag→tags', frontmatterRule, async (value) => {
       this.ensureFrontmatterRule();
       (this.plugin.settings.rules['frontmatter'] as any).normalizeFields = value;
       await this.plugin.saveSettings();
-    }, []);
+    }, [
+      { name: '启用字段规范化', key: 'normalizeFields', desc: '自动转换字段名', value: frontmatterRule?.normalizeFields !== false }
+    ]);
 
     // created 折叠面板
     this.renderCollapsibleSetting(containerEl, 'created 时间', '缺失时自动填充', subRules.created, async (value) => {
@@ -188,11 +190,13 @@ export class SettingsTab extends PluginSettingTab {
       { name: '使用文件创建时间', key: 'useFileCtime', desc: '缺失 created 时使用文件创建时间填充', value: subRules.created?.useFileCtime !== false }
     ]);
 
-    // updated 折叠面板
+    // updated 折叠面板（带开关）
     this.renderCollapsibleSetting(containerEl, 'updated 时间', '每次格式化更新为当前时间', subRules.updated, async (value) => {
       subRules.updated.enabled = value;
       await this.plugin.saveSettings();
-    }, []);
+    }, [
+      { name: '启用 updated 更新时间', key: 'enabled', desc: '每次格式化时更新', value: subRules.updated?.enabled !== false }
+    ]);
 
     // tags 折叠面板
     this.renderCollapsibleSetting(containerEl, '标签 (tags)', '处理标签字段', subRules.tags, async (value) => {
