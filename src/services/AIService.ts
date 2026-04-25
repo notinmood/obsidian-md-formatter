@@ -106,11 +106,16 @@ export class AIServiceImpl implements AIService {
       if (!jsonMatch) return null;
 
       const parsed = JSON.parse(jsonMatch[0]);
-      return {
+      const result = {
         tags: Array.isArray(parsed.tags) ? parsed.tags : [],
-        summary: parsed.summary || '',
-        categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+        summary: parsed.summary || parsed.Summary || '',
+        categories: Array.isArray(parsed.categories) ? parsed.categories
+          : Array.isArray(parsed.category) ? parsed.category
+          : [],
       };
+      console.log('[MD Formatter] AI 原始响应解析:', JSON.stringify(parsed));
+      console.log('[MD Formatter] categories 结果:', JSON.stringify(result.categories));
+      return result;
     } catch {
       return null;
     }
