@@ -171,6 +171,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     maxTags: 5,
     maxCategories: 3,
     customPrompt: '',
+    showPreview: true,
   },
 };
 
@@ -216,6 +217,7 @@ export interface AIFrontmatterConfig {
   maxTags: number;
   maxCategories: number;
   customPrompt: string;
+  showPreview: boolean;
 }
 
 export interface FileInfo {
