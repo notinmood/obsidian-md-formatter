@@ -355,6 +355,18 @@ export class SettingsTab extends PluginSettingTab {
       return;
     }
 
+    new Setting(containerEl)
+      .setName('启用 AI 预览')
+      .setDesc('格式化时弹出预览窗口，可审阅和编辑 AI 生成的标签、摘要、分类后再应用。关闭则直接应用格式化结果。')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.aiFrontmatter.showPreview ?? true)
+          .onChange(async (value) => {
+            this.plugin.settings.aiFrontmatter.showPreview = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // 提供商列表（每个为折叠面板）
     const providers = this.plugin.settings.aiFrontmatter.providers;
     for (let i = 0; i < providers.length; i++) {
