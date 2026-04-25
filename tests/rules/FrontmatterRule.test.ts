@@ -25,6 +25,38 @@ describe('FrontmatterRule', () => {
       expect(rule.defaultConfig).toEqual({
         enabled: true,
         normalizeFields: true,
+        subRules: {
+          created: {
+            enabled: true,
+            useFileCtime: true,
+          },
+          updated: {
+            enabled: true,
+          },
+          tags: {
+            enabled: true,
+            ensureTimeTags: true,
+            ai: {
+              enabled: true,
+            },
+          },
+          summary: {
+            enabled: true,
+            ai: {
+              enabled: true,
+            },
+          },
+          categories: {
+            enabled: true,
+            ai: {
+              enabled: true,
+            },
+          },
+          title: {
+            enabled: true,
+            useFilename: true,
+          },
+        },
       });
     });
   });

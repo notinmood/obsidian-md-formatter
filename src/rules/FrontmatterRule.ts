@@ -1,19 +1,58 @@
 import { parse, stringify } from 'yaml';
-import type { FormatRule, RuleConfig, AstNode, FileInfo, AIService } from '../types';
+import type {
+  FormatRule,
+  RuleConfig,
+  AstNode,
+  FileInfo,
+  AIService,
+  FrontmatterConfig,
+  FrontmatterSubRules,
+} from '../types';
 
 /**
  * Frontmatter 格式化规则
- * 确保 YAML frontmatter 使用 --- 标记，规范化字段名，处理时间字段和时间标签，支持 AI 元数据
+ * 支持子规则嵌套配置，每个子功能可独立开关
  */
 export class FrontmatterRule implements FormatRule {
   name = 'frontmatter';
   priority = 5;  // 最高优先级，最先处理
-  description = '处理 frontmatter：字段规范化、时间字段、时间标签、AI 元数据';
+  description = '处理 frontmatter：时间字段、标签、摘要、分类、标题';
 
-  defaultConfig = {
+  defaultConfig: FrontmatterConfig = {
     enabled: true,
-    // 字段名规范化配置
     normalizeFields: true,
+    subRules: {
+      created: {
+        enabled: true,
+        useFileCtime: true,
+      },
+      updated: {
+        enabled: true,
+      },
+      tags: {
+        enabled: true,
+        ensureTimeTags: true,
+        ai: {
+          enabled: true,
+        },
+      },
+      summary: {
+        enabled: true,
+        ai: {
+          enabled: true,
+        },
+      },
+      categories: {
+        enabled: true,
+        ai: {
+          enabled: true,
+        },
+      },
+      title: {
+        enabled: true,
+        useFilename: true,
+      },
+    },
   };
 
   /**
@@ -27,8 +66,14 @@ export class FrontmatterRule implements FormatRule {
 
   private weekdayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
-  async apply(ast: AstNode, config: RuleConfig, filename?: string, fileInfo?: FileInfo, aiService?: AIService): Promise<AstNode> {
-    const cfg = { ...this.defaultConfig, ...config };
+  async apply(
+    ast: AstNode,
+    config: RuleConfig,
+    filename?: string,
+    fileInfo?: FileInfo,
+    aiService?: AIService
+  ): Promise<AstNode> {
+    const cfg = { ...this.defaultConfig, ...config } as FrontmatterConfig;
 
     if (cfg.enabled === false) {
       return ast;
@@ -59,69 +104,34 @@ export class FrontmatterRule implements FormatRule {
       if (typeof yamlContent === 'object') {
         // 1. 字段名规范化
         if (cfg.normalizeFields) {
-          for (const [oldName, newName] of Object.entries(this.fieldRenameMap)) {
-            if (oldName in yamlContent && !(newName in yamlContent)) {
-              yamlContent[newName] = yamlContent[oldName];
-              delete yamlContent[oldName];
-            }
-          }
+          this.applyNormalizeFields(yamlContent);
         }
 
-        // 2. created 字段：缺失时从 fileInfo.ctime 生成
-        let createdDate: string | null = null;
-        if (!('created' in yamlContent) && fileInfo) {
-          createdDate = this.formatDate(fileInfo.ctime);
-          yamlContent.created = createdDate;
-        } else if ('created' in yamlContent) {
-          createdDate = String(yamlContent.created);
-        }
+        // 2. 执行 created 子规则（获取日期并写入）
+        const createdDate = this.applyCreated(yamlContent, cfg.subRules.created, fileInfo);
 
-        // 3. updated 字段：每次格式化都更新为当前时间
-        if (createdDate) {
+        // 3. 执行 updated 子规则
+        if (cfg.subRules.updated.enabled && createdDate) {
           yamlContent.updated = this.formatDate(Date.now());
         }
 
-        // 4. 时间标签（确定性逻辑，始终确保 Year/Month 存在）
-        if (createdDate) {
-          const dateInfo = this.extractDateInfo(createdDate);
-          const yearTag = `Year/${dateInfo.year}`;
-          const monthTag = `Month/${dateInfo.month}`;
-
-          const existingTags = this.normalizeTags(yamlContent.tags);
-          const hasYear = existingTags.some(t => t === yearTag);
-          const hasMonth = existingTags.some(t => t === monthTag);
-
-          if (!hasYear) existingTags.push(yearTag);
-          if (!hasMonth) existingTags.push(monthTag);
-
-          // 5. AI 逻辑
-          if (aiService) {
-            const bodyContent = this.extractBody(clonedAst);
-            const aiResult = await aiService.generateMetadata(bodyContent, createdDate, existingTags);
-
-            if (aiResult) {
-              // AI 可用：覆盖 tags = 时间标签 + AI 标签
-              yamlContent.tags = [yearTag, monthTag, ...aiResult.tags];
-
-              // summary：已有则不覆盖
-              if (!('summary' in yamlContent) || !yamlContent.summary) {
-                yamlContent.summary = aiResult.summary;
-              }
-
-              // categories：覆盖
-              yamlContent.categories = aiResult.categories;
-            } else {
-              // AI 调用失败：不改动其他 tags，只确保时间标签存在
-              yamlContent.tags = existingTags;
-            }
-          } else {
-            // AI 未配置：不改动其他 tags，只确保时间标签存在
-            yamlContent.tags = existingTags;
-          }
+        // 4. 执行 tags 子规则
+        if (cfg.subRules.tags.enabled && createdDate) {
+          await this.applyTags(clonedAst, yamlContent, createdDate, cfg.subRules.tags, aiService);
         }
 
-        // 6. 如果没有 title，用 filename 填充
-        if (!('title' in yamlContent) && filename) {
+        // 5. 执行 summary 子规则
+        if (cfg.subRules.summary.enabled) {
+          await this.applySummary(clonedAst, yamlContent, aiService, cfg.subRules.summary.ai);
+        }
+
+        // 6. 执行 categories 子规则
+        if (cfg.subRules.categories.enabled) {
+          await this.applyCategories(yamlContent, aiService, cfg.subRules.categories.ai);
+        }
+
+        // 7. 执行 title 子规则
+        if (cfg.subRules.title.enabled && !('title' in yamlContent) && filename && cfg.subRules.title.useFilename) {
           yamlContent.title = filename;
         }
 
@@ -137,6 +147,133 @@ export class FrontmatterRule implements FormatRule {
     }
 
     return clonedAst;
+  }
+
+  /**
+   * 字段名规范化：create→created, update→updated, tag→tags
+   */
+  private applyNormalizeFields(yamlContent: Record<string, unknown>): void {
+    for (const [oldName, newName] of Object.entries(this.fieldRenameMap)) {
+      if (oldName in yamlContent && !(newName in yamlContent)) {
+        yamlContent[newName] = yamlContent[oldName];
+        delete yamlContent[oldName];
+      }
+    }
+  }
+
+  /**
+   * 应用 created 子规则
+   * @returns created 日期字符串或 null
+   */
+  private applyCreated(
+    yamlContent: Record<string, unknown>,
+    config: FrontmatterSubRules['created'],
+    fileInfo?: FileInfo
+  ): string | null {
+    if (!config.enabled) {
+      return null;
+    }
+
+    if ('created' in yamlContent) {
+      return String(yamlContent.created);
+    }
+
+    if (config.useFileCtime && fileInfo) {
+      const date = this.formatDate(fileInfo.ctime);
+      yamlContent.created = date;
+      return date;
+    }
+
+    return null;
+  }
+
+  /**
+   * 应用 tags 子规则
+   */
+  private async applyTags(
+    ast: AstNode,
+    yamlContent: Record<string, unknown>,
+    createdDate: string,
+    config: FrontmatterSubRules['tags'],
+    aiService?: AIService
+  ): Promise<void> {
+    const dateInfo = this.extractDateInfo(createdDate);
+    const yearTag = `Year/${dateInfo.year}`;
+    const monthTag = `Month/${dateInfo.month}`;
+
+    let tags = this.normalizeTags(yamlContent.tags);
+
+    // 确保时间标签（确定性逻辑）
+    if (config.ensureTimeTags) {
+      const hasYear = tags.some(t => t === yearTag);
+      const hasMonth = tags.some(t => t === monthTag);
+      if (!hasYear) tags.push(yearTag);
+      if (!hasMonth) tags.push(monthTag);
+    }
+
+    // AI 生成标签
+    if (config.ai.enabled && aiService) {
+      const bodyContent = this.extractBody(ast);
+      const aiResult = await aiService.generateMetadata(bodyContent, createdDate, tags);
+
+      if (aiResult) {
+        // AI 可用：覆盖 tags = 时间标签 + AI 标签
+        tags = [yearTag, monthTag, ...aiResult.tags];
+      }
+      // AI 调用失败：不改动 tags，保持确定性逻辑结果
+    }
+
+    yamlContent.tags = tags;
+  }
+
+  /**
+   * 应用 summary 子规则
+   */
+  private async applySummary(
+    ast: AstNode,
+    yamlContent: Record<string, unknown>,
+    aiService?: AIService,
+    aiConfig: FrontmatterSubRules['summary']['ai']
+  ): Promise<void> {
+    // 已有 summary 则不覆盖
+    if ('summary' in yamlContent && yamlContent.summary) {
+      return;
+    }
+
+    // AI 生成摘要
+    if (aiConfig.enabled && aiService) {
+      const bodyContent = this.extractBody(ast);
+      const createdDate = 'created' in yamlContent ? String(yamlContent.created) : undefined;
+      const existingTags = this.normalizeTags(yamlContent.tags);
+
+      const aiResult = await aiService.generateMetadata(bodyContent, createdDate || '', existingTags);
+
+      if (aiResult) {
+        yamlContent.summary = aiResult.summary;
+      }
+    }
+  }
+
+  /**
+   * 应用 categories 子规则
+   */
+  private async applyCategories(
+    yamlContent: Record<string, unknown>,
+    aiService?: AIService,
+    aiConfig: FrontmatterSubRules['categories']['ai']
+  ): Promise<void> {
+    // AI 生成分类
+    if (aiConfig.enabled && aiService) {
+      const bodyContent = '';  // categories 生成不需要内容
+      const createdDate = 'created' in yamlContent ? String(yamlContent.created) : undefined;
+      const existingTags = this.normalizeTags(yamlContent.tags);
+
+      const aiResult = await aiService.generateMetadata(bodyContent, createdDate || '', existingTags);
+
+      if (aiResult) {
+        yamlContent.categories = aiResult.categories;
+      }
+    }
   }
 
   private formatDate(timestamp: number): string {
