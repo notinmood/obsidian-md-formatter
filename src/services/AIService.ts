@@ -113,8 +113,6 @@ export class AIServiceImpl implements AIService {
           : Array.isArray(parsed.category) ? parsed.category
           : [],
       };
-      console.log('[MD Formatter] AI 原始响应解析:', JSON.stringify(parsed));
-      console.log('[MD Formatter] categories 结果:', JSON.stringify(result.categories));
       return result;
     } catch {
       return null;

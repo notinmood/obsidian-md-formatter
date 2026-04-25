@@ -228,7 +228,7 @@ export class SettingsTab extends PluginSettingTab {
     // categories
     if (this.plugin.settings.aiFrontmatter.enabled) {
       this.renderCollapsibleSetting(containerEl, '分类 (categories)', '处理分类字段', subRules, [
-        { name: 'AI 生成分类', key: 'categories.ai.enabled', desc: '使用 AI 生成分类', value: getSubVal('categories.ai.enabled', true) }
+        { name: 'AI 生成分类', key: 'categories.ai.enabled', desc: '使用 AI 生成分类（categories 完全由 AI 生成）', value: getSubVal('categories.ai.enabled', true) }
       ]);
     }
 

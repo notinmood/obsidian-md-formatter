@@ -108,9 +108,9 @@ export class FrontmatterRule implements FormatRule {
           this.applySummary(yamlContent, cfg.subRules.summary.ai, aiResult);
         }
 
-        // 7. 执行 categories 子规则
-        if (cfg.subRules.categories.enabled) {
-          this.applyCategories(yamlContent, cfg.subRules.categories.ai, aiResult);
+        // 7. 执行 categories 子规则（categories 完全依赖 AI，只要 AI 配置启用且有结果就写入）
+        if (cfg.subRules.categories.ai.enabled && aiResult && aiResult.categories.length > 0) {
+          yamlContent.categories = aiResult.categories;
         }
 
         // 8. 执行 title 子规则
