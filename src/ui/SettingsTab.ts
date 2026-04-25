@@ -173,20 +173,12 @@ export class SettingsTab extends PluginSettingTab {
 
     if (!mainEnabled) return;
 
-    // 子规则容器（可折叠）
-    // 字段规范化（非折叠，独立显示）
-    const normalizeSetting = new Setting(containerEl);
-    normalizeSetting.setName('字段规范化');
-    normalizeSetting.setDesc('create→created, update→updated, tag→tags');
-    normalizeSetting.addToggle((toggle) =>
-      toggle
-        .setValue(frontmatterRule.normalizeFields !== false)
-        .onChange(async (value) => {
-          this.ensureFrontmatterRule();
-          (this.plugin.settings.rules['frontmatter'] as any).normalizeFields = value;
-          await this.plugin.saveSettings();
-        })
-    );
+    // 字段规范化折叠面板
+    this.renderCollapsibleSetting(containerEl, '字段规范化', 'create→created, update→updated, tag→tags', { enabled: frontmatterRule.normalizeFields !== false }, async (value) => {
+      this.ensureFrontmatterRule();
+      (this.plugin.settings.rules['frontmatter'] as any).normalizeFields = value;
+      await this.plugin.saveSettings();
+    }, []);
 
     // created 折叠面板
     this.renderCollapsibleSetting(containerEl, 'created 时间', '缺失时自动填充', subRules.created, async (value) => {
@@ -394,7 +386,7 @@ containerEl.appendChild(details);
 
   private renderAISettings(containerEl: HTMLElement): void {
     new Setting(containerEl)
-      .setName('AI Frontmatter 设置')
+      .setName('AI 设置')
       .setHeading();
 
     new Setting(containerEl)
