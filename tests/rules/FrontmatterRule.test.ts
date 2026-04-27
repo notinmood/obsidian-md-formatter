@@ -639,4 +639,44 @@ describe('ai-formatted 字段', () => {
     const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
     expect(yamlNode?.value).not.toContain('ai-formatted:');
   });
+
+  it('AI 生成标签时不应重复已有的 Year/Month 标签', async () => {
+    const content = '---\ncreated: 2026-04-21\ntags:\n  - Year/2026\n  - Month/04\n  - ExistingTag\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const mockAiService = {
+      generateMetadata: jest.fn().mockResolvedValue({
+        tags: ['AI-Tag', 'Year/2026', 'Month/04'],
+        summary: 'AI 摘要',
+        categories: ['AI-分类'],
+      }),
+    };
+
+    const result = await rule.apply(
+      ast,
+      {
+        enabled: true,
+        subRules: {
+          tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
+          summary: { enabled: true, ai: { enabled: true } },
+          categories: { enabled: true, ai: { enabled: true } },
+        },
+      },
+      'Test',
+      fileInfo,
+      mockAiService as any,
+    );
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    const yamlStr = yamlNode?.value as string;
+    // Year/2026 和 Month/04 不应重复
+    const yearCount = yamlStr.split('Year/2026').length - 1;
+    const monthCount = yamlStr.split('Month/04').length - 1;
+    expect(yearCount).toBe(1);
+    expect(monthCount).toBe(1);
+    // 已有标签和 AI 新标签都应存在
+    expect(yamlStr).toContain('ExistingTag');
+    expect(yamlStr).toContain('AI-Tag');
+  });
 });

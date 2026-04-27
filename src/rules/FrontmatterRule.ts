@@ -240,9 +240,14 @@ export class FrontmatterRule implements FormatRule {
       if (!hasMonth) tags.push(monthTag);
     }
 
-    // AI 生成标签
+    // AI 生成标签：合并去重
     if (config.ai.enabled && aiResult) {
-      tags = [yearTag, monthTag, ...aiResult.tags];
+      const aiTags = [yearTag, monthTag, ...aiResult.tags];
+      for (const tag of aiTags) {
+        if (!tags.some(t => t === tag)) {
+          tags.push(tag);
+        }
+      }
     }
 
     yamlContent.tags = tags;
