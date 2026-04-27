@@ -56,6 +56,10 @@ describe('FrontmatterRule', () => {
             enabled: true,
             useFilename: true,
           },
+          aiFormatted: {
+            enabled: true,
+            skipAiIfPresent: true,
+          },
         },
       });
     });

@@ -107,6 +107,14 @@ export interface FrontmatterTitleConfig {
 }
 
 /**
+ * Frontmatter 子规则配置 - AI 格式化标记
+ */
+export interface FrontmatterAiFormattedConfig {
+  enabled: boolean;
+  skipAiIfPresent: boolean;
+}
+
+/**
  * Frontmatter 子规则配置集合
  */
 export interface FrontmatterSubRules {
@@ -116,6 +124,7 @@ export interface FrontmatterSubRules {
   summary: FrontmatterSummaryConfig;
   categories: FrontmatterCategoriesConfig;
   title: FrontmatterTitleConfig;
+  aiFormatted: FrontmatterAiFormattedConfig;
 }
 
 /**
@@ -128,6 +137,7 @@ export const DEFAULT_SUBRULES: FrontmatterSubRules = {
   summary: { enabled: true, ai: { enabled: true } },
   categories: { enabled: true, ai: { enabled: true } },
   title: { enabled: true, useFilename: true },
+  aiFormatted: { enabled: true, skipAiIfPresent: true },
 };
 
 /**
