@@ -209,6 +209,13 @@ export class SettingsTab extends PluginSettingTab {
       { name: '启用 updated 更新', key: 'updated.enabled', desc: '每次格式化时更新 updated 为当前时间', value: getSubVal('updated.enabled', true) }
     ]);
 
+    // ai-formatted
+    const aiFormattedItems: { name: string; key: string; desc: string; value: boolean }[] = [
+      { name: '启用 ai-formatted 字段', key: 'aiFormatted.enabled', desc: 'AI 格式化后写入 ai-formatted 时间标记', value: getSubVal('aiFormatted.enabled', true) },
+      { name: '已有值时跳过 AI 调用', key: 'aiFormatted.skipAiIfPresent', desc: '已有 ai-formatted 时间值时跳过 AI 调用，节省 AI 用量', value: getSubVal('aiFormatted.skipAiIfPresent', true) },
+    ];
+    this.renderCollapsibleSetting(containerEl, 'AI 格式化标记 (ai-formatted)', '标记 AI 格式化时间，避免重复调用', subRules, aiFormattedItems);
+
     // tags
     const tagsItems: { name: string; key: string; desc: string; value: boolean }[] = [
       { name: '确保时间标签', key: 'tags.ensureTimeTags', desc: '自动添加 Year/Month 标签', value: getSubVal('tags.ensureTimeTags', true) },
