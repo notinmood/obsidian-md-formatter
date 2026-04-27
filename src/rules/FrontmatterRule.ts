@@ -86,10 +86,18 @@ export class FrontmatterRule implements FormatRule {
           yamlContent.updated = this.formatDate(Date.now());
         }
 
-        // 4. 一次性调用 AI，获取 tags/summary/categories
-        const needAi = (cfg.subRules.tags.enabled && cfg.subRules.tags.ai.enabled)
-          || (cfg.subRules.summary.enabled && cfg.subRules.summary.ai.enabled)
-          || (cfg.subRules.categories.enabled && cfg.subRules.categories.ai.enabled);
+        // 4. 检查 ai-formatted 字段，决定是否跳过 AI
+        const aiFormattedValue = yamlContent['ai-formatted'];
+        const hasAiFormatted = aiFormattedValue !== undefined
+          && aiFormattedValue !== null
+          && String(aiFormattedValue).trim() !== '';
+        const skipAi = cfg.subRules.aiFormatted.skipAiIfPresent && hasAiFormatted;
+
+        // 5. 一次性调用 AI，获取 tags/summary/categories
+        const needAi = !skipAi
+          && ((cfg.subRules.tags.enabled && cfg.subRules.tags.ai.enabled)
+            || (cfg.subRules.summary.enabled && cfg.subRules.summary.ai.enabled)
+            || (cfg.subRules.categories.enabled && cfg.subRules.categories.ai.enabled));
         const aiResult = needAi && aiService
           ? await aiService.generateMetadata(
             this.extractBody(clonedAst),
@@ -111,6 +119,11 @@ export class FrontmatterRule implements FormatRule {
         // 7. 执行 categories 子规则（categories 完全依赖 AI，只要 AI 配置启用且有结果就写入）
         if (cfg.subRules.categories.ai.enabled && aiResult && aiResult.categories.length > 0) {
           yamlContent.categories = aiResult.categories;
+        }
+
+        // 7.5 写入 ai-formatted（仅在本次实际调用了 AI 时）
+        if (cfg.subRules.aiFormatted.enabled && aiResult) {
+          yamlContent['ai-formatted'] = this.formatDate(Date.now());
         }
 
         // 8. 执行 title 子规则
@@ -272,7 +285,7 @@ export class FrontmatterRule implements FormatRule {
    * summary 始终为最后一个字段
    */
   private orderFields(yamlContent: Record<string, unknown>): Record<string, unknown> {
-    const orderedKeys = ['title', 'created', 'updated', 'categories', 'tags'];
+    const orderedKeys = ['title', 'created', 'updated', 'ai-formatted', 'categories', 'tags'];
     const knownKeys = new Set([...orderedKeys, 'summary']);
     const otherKeys = Object.keys(yamlContent).filter(k => !knownKeys.has(k));
 

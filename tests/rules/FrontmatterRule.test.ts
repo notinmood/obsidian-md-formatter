@@ -1,4 +1,5 @@
 // tests/rules/FrontmatterRule.test.ts
+import { jest } from '@jest/globals';
 import { FrontmatterRule } from '../../src/rules/FrontmatterRule';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
@@ -435,5 +436,207 @@ describe('配置深合并', () => {
     expect(yamlNode?.value).toContain('create:');
     // title 仍添加
     expect(yamlNode?.value).toContain('title: MyDoc');
+  });
+});
+
+describe('ai-formatted 字段', () => {
+  let rule: FrontmatterRule;
+  const fileInfo = { ctime: new Date('2026-04-24T14:30:00').getTime(), mtime: new Date('2026-04-21T10:00:00').getTime() };
+
+  beforeEach(() => {
+    rule = new FrontmatterRule();
+  });
+
+  it('调用 AI 后应写入 ai-formatted 字段', async () => {
+    const content = '---\ncreated: 2026-04-21\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const mockAiService = {
+      generateMetadata: jest.fn().mockResolvedValue({
+        tags: ['AI-Tag'],
+        summary: 'AI 摘要',
+        categories: ['AI-分类'],
+      }),
+    };
+
+    const result = await rule.apply(
+      ast,
+      {
+        enabled: true,
+        subRules: {
+          tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
+          summary: { enabled: true, ai: { enabled: true } },
+          categories: { enabled: true, ai: { enabled: true } },
+        },
+      },
+      'Test',
+      fileInfo,
+      mockAiService as any,
+    );
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).toContain('ai-formatted:');
+    expect(mockAiService.generateMetadata).toHaveBeenCalled();
+  });
+
+  it('未调用 AI 时不应写入 ai-formatted 字段', async () => {
+    const content = '---\ncreated: 2026-04-21\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    // AI 子规则全部关闭
+    const result = await rule.apply(
+      ast,
+      {
+        enabled: true,
+        subRules: {
+          tags: { enabled: true, ensureTimeTags: true, ai: { enabled: false } },
+          summary: { enabled: true, ai: { enabled: false } },
+          categories: { enabled: true, ai: { enabled: false } },
+        },
+      },
+      'Test',
+      fileInfo,
+    );
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).not.toContain('ai-formatted:');
+  });
+
+  it('已有 ai-formatted 值时应跳过 AI 调用', async () => {
+    const content = '---\ncreated: 2026-04-21\nai-formatted: 2026-04-25 10:00:00 星期五\ntags:\n  - Year/2026\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const mockAiService = {
+      generateMetadata: jest.fn().mockResolvedValue({
+        tags: ['AI-Tag'],
+        summary: 'AI 摘要',
+        categories: ['AI-分类'],
+      }),
+    };
+
+    const result = await rule.apply(
+      ast,
+      {
+        enabled: true,
+        subRules: {
+          tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
+          summary: { enabled: true, ai: { enabled: true } },
+          categories: { enabled: true, ai: { enabled: true } },
+        },
+      },
+      'Test',
+      fileInfo,
+      mockAiService as any,
+    );
+
+    expect(mockAiService.generateMetadata).not.toHaveBeenCalled();
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    // 原有值保持不变
+    expect(yamlNode?.value).toContain('ai-formatted: 2026-04-25');
+  });
+
+  it('ai-formatted 为空值时应正常调用 AI', async () => {
+    const content = '---\ncreated: 2026-04-21\nai-formatted:\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const mockAiService = {
+      generateMetadata: jest.fn().mockResolvedValue({
+        tags: ['AI-Tag'],
+        summary: 'AI 摘要',
+        categories: ['AI-分类'],
+      }),
+    };
+
+    const result = await rule.apply(
+      ast,
+      {
+        enabled: true,
+        subRules: {
+          tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
+          summary: { enabled: true, ai: { enabled: true } },
+          categories: { enabled: true, ai: { enabled: true } },
+        },
+      },
+      'Test',
+      fileInfo,
+      mockAiService as any,
+    );
+
+    expect(mockAiService.generateMetadata).toHaveBeenCalled();
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    // 应写入新的时间值（不再是空）
+    expect(yamlNode?.value).toMatch(/ai-formatted: \d{4}-\d{2}-\d{2}/);
+  });
+
+  it('关闭 skipAiIfPresent 时即使有 ai-formatted 也应调用 AI', async () => {
+    const content = '---\ncreated: 2026-04-21\nai-formatted: 2026-04-25 10:00:00 星期五\ntags:\n  - Year/2026\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const mockAiService = {
+      generateMetadata: jest.fn().mockResolvedValue({
+        tags: ['AI-Tag'],
+        summary: 'AI 摘要',
+        categories: ['AI-分类'],
+      }),
+    };
+
+    const result = await rule.apply(
+      ast,
+      {
+        enabled: true,
+        subRules: {
+          aiFormatted: { enabled: true, skipAiIfPresent: false },
+          tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
+          summary: { enabled: true, ai: { enabled: true } },
+          categories: { enabled: true, ai: { enabled: true } },
+        },
+      },
+      'Test',
+      fileInfo,
+      mockAiService as any,
+    );
+
+    expect(mockAiService.generateMetadata).toHaveBeenCalled();
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    // 时间被更新
+    expect(yamlNode?.value).toContain('ai-formatted:');
+  });
+
+  it('关闭 aiFormatted.enabled 时不应写入 ai-formatted 字段', async () => {
+    const content = '---\ncreated: 2026-04-21\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const mockAiService = {
+      generateMetadata: jest.fn().mockResolvedValue({
+        tags: ['AI-Tag'],
+        summary: 'AI 摘要',
+        categories: ['AI-分类'],
+      }),
+    };
+
+    const result = await rule.apply(
+      ast,
+      {
+        enabled: true,
+        subRules: {
+          aiFormatted: { enabled: false, skipAiIfPresent: true },
+          tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
+          summary: { enabled: true, ai: { enabled: true } },
+          categories: { enabled: true, ai: { enabled: true } },
+        },
+      },
+      'Test',
+      fileInfo,
+      mockAiService as any,
+    );
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    expect(yamlNode?.value).not.toContain('ai-formatted:');
   });
 });
