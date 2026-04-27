@@ -679,4 +679,42 @@ describe('ai-formatted 字段', () => {
     expect(yamlStr).toContain('ExistingTag');
     expect(yamlStr).toContain('AI-Tag');
   });
+
+  it('Year/Month 标签应始终排在最前面', async () => {
+    const content = '---\ncreated: 2026-04-21\ntags:\n  - ExistingTag\n  - AnotherTag\n---\n\n# Heading';
+    const processor = unified().use(remarkParse).use(remarkFrontmatter);
+    const ast = processor.parse(content);
+
+    const mockAiService = {
+      generateMetadata: jest.fn().mockResolvedValue({
+        tags: ['AI-Tag'],
+        summary: 'AI 摘要',
+        categories: ['AI-分类'],
+      }),
+    };
+
+    const result = await rule.apply(
+      ast,
+      {
+        enabled: true,
+        subRules: {
+          tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
+          summary: { enabled: true, ai: { enabled: true } },
+          categories: { enabled: true, ai: { enabled: true } },
+        },
+      },
+      'Test',
+      fileInfo,
+      mockAiService as any,
+    );
+
+    const yamlNode = result.children?.find((c: any) => c.type === 'yaml');
+    const yamlStr = yamlNode?.value as string;
+    // Year 应在 Month 前面，Month 应在任何非时间标签前面
+    const yearIdx = yamlStr.indexOf('Year/2026');
+    const monthIdx = yamlStr.indexOf('Month/04');
+    const existingIdx = yamlStr.indexOf('ExistingTag');
+    expect(yearIdx).toBeLessThan(monthIdx);
+    expect(monthIdx).toBeLessThan(existingIdx);
+  });
 });

@@ -250,7 +250,17 @@ export class FrontmatterRule implements FormatRule {
       }
     }
 
-    yamlContent.tags = tags;
+    // 确保 Year/MM 和 Month/MM 排在最前面
+    const timeTags: string[] = [];
+    const otherTags: string[] = [];
+    for (const tag of tags) {
+      if (tag.startsWith('Year/') || tag.startsWith('Month/')) {
+        if (!timeTags.some(t => t === tag)) timeTags.push(tag);
+      } else {
+        otherTags.push(tag);
+      }
+    }
+    yamlContent.tags = [...timeTags, ...otherTags];
   }
 
   /**
