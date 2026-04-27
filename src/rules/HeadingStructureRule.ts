@@ -101,21 +101,28 @@ export class HeadingStructureRule implements FormatRule {
       }
     }
 
-    // 确保标题层级逐级递增
+    // 确保标题层级逐级递增（整体晋升算法）
     if (cfg.enforceHierarchy && headings.length > 0) {
-      let prevDepth = headings[0].depth;
+      let i = 1;
+      while (i < headings.length) {
+        const prevDepth = headings[i - 1].depth;
+        const currentDepth = headings[i].depth;
 
-      for (let i = 1; i < headings.length; i++) {
-        const current = headings[i];
-
-        // 如果跳级（当前层级比前一个层级大超过1）
-        if (current.depth > prevDepth + 1) {
-          // 调整为前一个层级+1
-          current.node.depth = Math.min(prevDepth + 1, 6);
-          current.depth = current.node.depth;
+        if (currentDepth > prevDepth + 1) {
+          // 跳级：将当前标题及所有同深度或更深的后续标题整体升一级
+          const threshold = currentDepth;
+          for (let j = i; j < headings.length; j++) {
+            if (headings[j].depth >= threshold) {
+              headings[j].depth -= 1;
+              headings[j].node.depth = headings[j].depth;
+            } else {
+              break;
+            }
+          }
+          // 不前进 i，重新检查当前位置是否仍有跳级
+        } else {
+          i++;
         }
-
-        prevDepth = current.depth;
       }
     }
 
