@@ -45,7 +45,7 @@ export default class MarkdownFormatterPlugin extends Plugin {
           menu.addItem((item) => {
             item
               .setTitle('格式化此文件夹')
-              .setIcon('format')
+              .setIcon('wand-2')
               .onClick(async () => {
                 await this.formatSelectedFolder(file, true);
               });
@@ -281,6 +281,8 @@ export default class MarkdownFormatterPlugin extends Plugin {
       progressModal.updateProgress({
         currentFile: file.path,
         processed: i,
+        success,
+        failed,
       });
 
       try {

@@ -7565,7 +7565,7 @@ __export(main_exports, {
   default: () => MarkdownFormatterPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian5 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 var import_yaml2 = __toESM(require_dist());
 
 // src/types/index.ts
@@ -7575,7 +7575,8 @@ var DEFAULT_SUBRULES = {
   tags: { enabled: true, ensureTimeTags: true, ai: { enabled: true } },
   summary: { enabled: true, ai: { enabled: true } },
   categories: { enabled: true, ai: { enabled: true } },
-  title: { enabled: true, useFilename: true }
+  title: { enabled: true, useFilename: true },
+  aiFormatted: { enabled: true, skipAiIfPresent: true }
 };
 var DEFAULT_SETTINGS = {
   fileSizeThreshold: 500,
@@ -18264,7 +18265,10 @@ var FrontmatterRule = class {
         if (cfg.subRules.updated.enabled && createdDate) {
           yamlContent.updated = this.formatDate(Date.now());
         }
-        const needAi = cfg.subRules.tags.enabled && cfg.subRules.tags.ai.enabled || cfg.subRules.summary.enabled && cfg.subRules.summary.ai.enabled || cfg.subRules.categories.enabled && cfg.subRules.categories.ai.enabled;
+        const aiFormattedValue = yamlContent["ai-formatted"];
+        const hasAiFormatted = aiFormattedValue !== void 0 && aiFormattedValue !== null && String(aiFormattedValue).trim() !== "";
+        const skipAi = cfg.subRules.aiFormatted.skipAiIfPresent && hasAiFormatted;
+        const needAi = !skipAi && (cfg.subRules.tags.enabled && cfg.subRules.tags.ai.enabled || cfg.subRules.summary.enabled && cfg.subRules.summary.ai.enabled || cfg.subRules.categories.enabled && cfg.subRules.categories.ai.enabled);
         const aiResult = needAi && aiService ? await aiService.generateMetadata(
           this.extractBody(clonedAst),
           createdDate || "",
@@ -18278,6 +18282,9 @@ var FrontmatterRule = class {
         }
         if (cfg.subRules.categories.ai.enabled && aiResult && aiResult.categories.length > 0) {
           yamlContent.categories = aiResult.categories;
+        }
+        if (cfg.subRules.aiFormatted.enabled && aiResult) {
+          yamlContent["ai-formatted"] = this.formatDate(Date.now());
         }
         if (cfg.subRules.title.enabled && !("title" in yamlContent) && filename && cfg.subRules.title.useFilename) {
           yamlContent.title = filename;
@@ -18367,9 +18374,24 @@ var FrontmatterRule = class {
         tags.push(monthTag);
     }
     if (config.ai.enabled && aiResult) {
-      tags = [yearTag, monthTag, ...aiResult.tags];
+      const aiTags = [yearTag, monthTag, ...aiResult.tags];
+      for (const tag of aiTags) {
+        if (!tags.some((t) => t === tag)) {
+          tags.push(tag);
+        }
+      }
     }
-    yamlContent.tags = tags;
+    const timeTags = [];
+    const otherTags = [];
+    for (const tag of tags) {
+      if (tag.startsWith("Year/") || tag.startsWith("Month/")) {
+        if (!timeTags.some((t) => t === tag))
+          timeTags.push(tag);
+      } else {
+        otherTags.push(tag);
+      }
+    }
+    yamlContent.tags = [...timeTags, ...otherTags];
   }
   /**
    * 应用 summary 子规则
@@ -18396,7 +18418,7 @@ var FrontmatterRule = class {
    * summary 始终为最后一个字段
    */
   orderFields(yamlContent) {
-    const orderedKeys = ["title", "created", "updated", "categories", "tags"];
+    const orderedKeys = ["title", "created", "updated", "ai-formatted", "categories", "tags"];
     const knownKeys = /* @__PURE__ */ new Set([...orderedKeys, "summary"]);
     const otherKeys = Object.keys(yamlContent).filter((k) => !knownKeys.has(k));
     const result = {};
@@ -18533,14 +18555,23 @@ var HeadingStructureRule = class {
       }
     }
     if (cfg.enforceHierarchy && headings.length > 0) {
-      let prevDepth = headings[0].depth;
-      for (let i = 1; i < headings.length; i++) {
-        const current = headings[i];
-        if (current.depth > prevDepth + 1) {
-          current.node.depth = Math.min(prevDepth + 1, 6);
-          current.depth = current.node.depth;
+      let i = 1;
+      while (i < headings.length) {
+        const prevDepth = headings[i - 1].depth;
+        const currentDepth = headings[i].depth;
+        if (currentDepth > prevDepth + 1) {
+          const threshold = currentDepth;
+          for (let j = i; j < headings.length; j++) {
+            if (headings[j].depth >= threshold) {
+              headings[j].depth -= 1;
+              headings[j].node.depth = headings[j].depth;
+            } else {
+              break;
+            }
+          }
+        } else {
+          i++;
         }
-        prevDepth = current.depth;
       }
     }
     return clonedAst;
@@ -19048,6 +19079,11 @@ var SettingsTab = class extends import_obsidian.PluginSettingTab {
     this.renderCollapsibleSetting(containerEl, "updated \u65F6\u95F4", "\u6BCF\u6B21\u683C\u5F0F\u5316\u66F4\u65B0\u4E3A\u5F53\u524D\u65F6\u95F4", subRules, [
       { name: "\u542F\u7528 updated \u66F4\u65B0", key: "updated.enabled", desc: "\u6BCF\u6B21\u683C\u5F0F\u5316\u65F6\u66F4\u65B0 updated \u4E3A\u5F53\u524D\u65F6\u95F4", value: getSubVal("updated.enabled", true) }
     ]);
+    const aiFormattedItems = [
+      { name: "\u542F\u7528 ai-formatted \u5B57\u6BB5", key: "aiFormatted.enabled", desc: "AI \u683C\u5F0F\u5316\u540E\u5199\u5165 ai-formatted \u65F6\u95F4\u6807\u8BB0", value: getSubVal("aiFormatted.enabled", true) },
+      { name: "\u5DF2\u6709\u503C\u65F6\u8DF3\u8FC7 AI \u8C03\u7528", key: "aiFormatted.skipAiIfPresent", desc: "\u5DF2\u6709 ai-formatted \u65F6\u95F4\u503C\u65F6\u8DF3\u8FC7 AI \u8C03\u7528\uFF0C\u8282\u7701 AI \u7528\u91CF", value: getSubVal("aiFormatted.skipAiIfPresent", true) }
+    ];
+    this.renderCollapsibleSetting(containerEl, "AI \u683C\u5F0F\u5316\u6807\u8BB0 (ai-formatted)", "\u6807\u8BB0 AI \u683C\u5F0F\u5316\u65F6\u95F4\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528", subRules, aiFormattedItems);
     const tagsItems = [
       { name: "\u786E\u4FDD\u65F6\u95F4\u6807\u7B7E", key: "tags.ensureTimeTags", desc: "\u81EA\u52A8\u6DFB\u52A0 Year/Month \u6807\u7B7E", value: getSubVal("tags.ensureTimeTags", true) }
     ];
@@ -19552,8 +19588,172 @@ var MetadataPreviewModal = class extends import_obsidian4.Modal {
   }
 };
 
+// src/modals/FolderSuggestModal.ts
+var import_obsidian5 = require("obsidian");
+var FolderSuggestModal = class extends import_obsidian5.FuzzySuggestModal {
+  constructor(app, onChoose) {
+    super(app);
+    this.onChoose = onChoose;
+    this.setPlaceholder("\u9009\u62E9\u8981\u683C\u5F0F\u5316\u7684\u6587\u4EF6\u5939...");
+  }
+  getItems() {
+    const folders = [];
+    const collectFolders = (folder) => {
+      folders.push(folder);
+      for (const child of folder.children) {
+        if (child instanceof import_obsidian5.TFolder) {
+          collectFolders(child);
+        }
+      }
+    };
+    collectFolders(this.app.vault.getRoot());
+    return folders;
+  }
+  getItemText(item) {
+    return item.path || "/ (\u6839\u76EE\u5F55)";
+  }
+  onChooseItem(item, evt) {
+    this.onChoose({
+      folder: item,
+      recursive: true
+    });
+  }
+};
+
+// src/modals/FolderFormatProgressModal.ts
+var import_obsidian6 = require("obsidian");
+var PROGRESS_STYLES = `
+  .md-formatter-progress-container {
+    min-width: 400px;
+  }
+  .md-formatter-progress-bar-wrapper {
+    width: 100%;
+    height: 8px;
+    background: var(--background-modifier-border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .md-formatter-progress-bar {
+    height: 100%;
+    background: var(--interactive-accent);
+    transition: width 0.2s ease;
+  }
+  .md-formatter-progress-file {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .md-formatter-progress-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .md-formatter-progress-success {
+    color: var(--text-success);
+  }
+  .md-formatter-progress-error {
+    color: var(--text-error);
+  }
+`;
+var progressStylesInjected = false;
+var FolderFormatProgressModal = class extends import_obsidian6.Modal {
+  constructor(app, totalFiles) {
+    super(app);
+    this.isClosed = false;
+    this.progress = {
+      currentFile: "",
+      processed: 0,
+      total: totalFiles,
+      success: 0,
+      failed: 0
+    };
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("md-formatter-progress-container");
+    if (!progressStylesInjected) {
+      const style = document.createElement("style");
+      style.textContent = PROGRESS_STYLES;
+      document.head.appendChild(style);
+      progressStylesInjected = true;
+    }
+    contentEl.createEl("h2", { text: "\u6279\u91CF\u683C\u5F0F\u5316" });
+    this.fileLabel = contentEl.createDiv({
+      cls: "md-formatter-progress-file",
+      text: "\u51C6\u5907\u4E2D..."
+    });
+    const progressBarWrapper = contentEl.createDiv({
+      cls: "md-formatter-progress-bar-wrapper"
+    });
+    this.progressBar = progressBarWrapper.createDiv({
+      cls: "md-formatter-progress-bar"
+    });
+    this.progressBar.style.width = "0%";
+    this.statsLabel = contentEl.createDiv({
+      cls: "md-formatter-progress-stats"
+    });
+    this.updateDisplay();
+  }
+  updateProgress(progress) {
+    if (this.isClosed)
+      return;
+    Object.assign(this.progress, progress);
+    this.updateDisplay();
+  }
+  updateDisplay() {
+    const { processed, total, success, failed, currentFile } = this.progress;
+    const percentage = total > 0 ? Math.round(processed / total * 100) : 0;
+    this.fileLabel.textContent = currentFile || "\u51C6\u5907\u4E2D...";
+    this.progressBar.style.width = `${percentage}%`;
+    this.statsLabel.innerHTML = `
+      <span>\u8FDB\u5EA6: ${processed}/${total} (${percentage}%)</span>
+      <span class="md-formatter-progress-success">\u6210\u529F: ${success}</span>
+      <span class="md-formatter-progress-error">\u5931\u8D25: ${failed}</span>
+    `;
+  }
+  onClose() {
+    this.isClosed = true;
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
+
+// src/utils/folderScanner.ts
+var EXCLUDED_FOLDERS = /* @__PURE__ */ new Set(["node_modules"]);
+function isExcludedFolder(folderName) {
+  return folderName.startsWith(".") || EXCLUDED_FOLDERS.has(folderName);
+}
+function isFolder(file) {
+  return "children" in file;
+}
+function isMarkdownFile(file) {
+  return "extension" in file && file.extension === "md";
+}
+function scanMarkdownFiles(folder, recursive = true) {
+  const files = [];
+  for (const child of folder.children) {
+    if (isFolder(child)) {
+      if (isExcludedFolder(child.name)) {
+        continue;
+      }
+      if (recursive) {
+        files.push(...scanMarkdownFiles(child, recursive));
+      }
+    } else if (isMarkdownFile(child)) {
+      files.push(child);
+    }
+  }
+  return files;
+}
+
 // src/main.ts
-var MarkdownFormatterPlugin = class extends import_obsidian5.Plugin {
+var MarkdownFormatterPlugin = class extends import_obsidian7.Plugin {
   constructor() {
     super(...arguments);
     this.settings = DEFAULT_SETTINGS;
@@ -19566,6 +19766,17 @@ var MarkdownFormatterPlugin = class extends import_obsidian5.Plugin {
     this.processor = new FileProcessor(this.formatter);
     this.registerCommands();
     this.addSettingTab(new SettingsTab(this.app, this));
+    this.registerEvent(
+      this.app.workspace.on("file-menu", (menu, file) => {
+        if (file instanceof import_obsidian7.TFolder) {
+          menu.addItem((item) => {
+            item.setTitle("\u683C\u5F0F\u5316\u6B64\u6587\u4EF6\u5939").setIcon("wand-2").onClick(async () => {
+              await this.formatSelectedFolder(file, true);
+            });
+          });
+        }
+      })
+    );
   }
   createAIService() {
     const aiConfig = this.settings.aiFrontmatter;
@@ -19597,7 +19808,7 @@ var MarkdownFormatterPlugin = class extends import_obsidian5.Plugin {
       id: "format-folder",
       name: "\u6279\u91CF\u683C\u5F0F\u5316\u6587\u4EF6\u5939",
       callback: () => {
-        this.formatFolder();
+        this.startFolderFormatFlow();
       }
     });
   }
@@ -19731,6 +19942,71 @@ ${newYaml}
       }
     }
     showNotice(`\u6279\u91CF\u683C\u5F0F\u5316\u5B8C\u6210: ${processed} \u4E2A\u6587\u4EF6\u5DF2\u66F4\u65B0, ${failed} \u4E2A\u5931\u8D25`);
+  }
+  /**
+   * 新的批量格式化流程：选择文件夹 -> 确认 -> 显示进度
+   */
+  async startFolderFormatFlow() {
+    new FolderSuggestModal(this.app, async ({ folder, recursive }) => {
+      await this.formatSelectedFolder(folder, recursive);
+    }).open();
+  }
+  /**
+   * 格式化选中的文件夹
+   */
+  async formatSelectedFolder(folder, recursive) {
+    const files = scanMarkdownFiles(folder, recursive);
+    if (files.length === 0) {
+      showNotice("\u8BE5\u6587\u4EF6\u5939\u4E0B\u6CA1\u6709 Markdown \u6587\u4EF6");
+      return;
+    }
+    const confirmed = confirm(`\u5373\u5C06\u683C\u5F0F\u5316 ${files.length} \u4E2A\u6587\u4EF6
+\u6587\u4EF6\u5939: ${folder.path || "/"}
+
+\u786E\u5B9A\u7EE7\u7EED\u5417\uFF1F`);
+    if (!confirmed)
+      return;
+    const progressModal = new FolderFormatProgressModal(this.app, files.length);
+    progressModal.open();
+    let success = 0;
+    let failed = 0;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      progressModal.updateProgress({
+        currentFile: file.path,
+        processed: i,
+        success,
+        failed
+      });
+      try {
+        const content3 = await this.app.vault.read(file);
+        const stat = await this.app.vault.adapter.stat(file.path);
+        const fileInfo = stat ? { ctime: stat.ctime, mtime: stat.mtime } : void 0;
+        const result = await this.processor.processContent(
+          content3,
+          this.settings,
+          void 0,
+          file.basename,
+          fileInfo
+        );
+        if (result.success && result.content && result.content !== content3) {
+          await this.app.vault.modify(file, result.content);
+          success++;
+        }
+      } catch (e) {
+        failed++;
+      }
+    }
+    progressModal.updateProgress({
+      currentFile: "\u5B8C\u6210",
+      processed: files.length,
+      success,
+      failed
+    });
+    setTimeout(() => {
+      progressModal.close();
+      showNotice(`\u6279\u91CF\u683C\u5F0F\u5316\u5B8C\u6210: ${success} \u4E2A\u6587\u4EF6\u5DF2\u66F4\u65B0, ${failed} \u4E2A\u5931\u8D25`);
+    }, 800);
   }
   /**
    * 加载设置
