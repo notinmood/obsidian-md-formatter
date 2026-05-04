@@ -1,5 +1,5 @@
 // src/main.ts
-import { Plugin, Notice, TFile, Editor, MarkdownView } from 'obsidian';
+import { Plugin, Notice, TFile, TFolder, Editor, MarkdownView } from 'obsidian';
 import { parse, Document as YamlDocument } from 'yaml';
 import { DEFAULT_SETTINGS, PluginSettings } from './types';
 import { RuleRegistry } from './core/RuleRegistry';
@@ -10,6 +10,9 @@ import { SettingsTab } from './ui/SettingsTab';
 import { showNotice, createProgressCallback } from './utils/notice';
 import { AIServiceImpl } from './services';
 import { MetadataPreviewModal } from './modals/MetadataPreviewModal';
+import { FolderSuggestModal } from './modals/FolderSuggestModal';
+import { FolderFormatProgressModal } from './modals/FolderFormatProgressModal';
+import { scanMarkdownFiles } from './utils/folderScanner';
 
 export default class MarkdownFormatterPlugin extends Plugin {
   settings: PluginSettings = DEFAULT_SETTINGS;
@@ -72,7 +75,7 @@ export default class MarkdownFormatterPlugin extends Plugin {
       id: 'format-folder',
       name: '批量格式化文件夹',
       callback: () => {
-        this.formatFolder();
+        this.startFolderFormatFlow();
       },
     });
   }
@@ -224,6 +227,80 @@ export default class MarkdownFormatterPlugin extends Plugin {
     }
 
     showNotice(`批量格式化完成: ${processed} 个文件已更新, ${failed} 个失败`);
+  }
+
+  /**
+   * 新的批量格式化流程：选择文件夹 -> 确认 -> 显示进度
+   */
+  private async startFolderFormatFlow(): Promise<void> {
+    new FolderSuggestModal(this.app, async ({ folder, recursive }) => {
+      await this.formatSelectedFolder(folder, recursive);
+    }).open();
+  }
+
+  /**
+   * 格式化选中的文件夹
+   */
+  private async formatSelectedFolder(folder: TFolder, recursive: boolean): Promise<void> {
+    const files = scanMarkdownFiles(folder, recursive);
+
+    if (files.length === 0) {
+      showNotice('该文件夹下没有 Markdown 文件');
+      return;
+    }
+
+    // 显示确认对话框（使用原生 confirm）
+    const confirmed = confirm(`即将格式化 ${files.length} 个文件\n文件夹: ${folder.path || '/'}\n\n确定继续吗？`);
+    if (!confirmed) return;
+
+    // 显示进度对话框
+    const progressModal = new FolderFormatProgressModal(this.app, files.length);
+    progressModal.open();
+
+    let success = 0;
+    let failed = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      progressModal.updateProgress({
+        currentFile: file.path,
+        processed: i,
+      });
+
+      try {
+        const content = await this.app.vault.read(file);
+        const stat = await this.app.vault.adapter.stat(file.path);
+        const fileInfo = stat ? { ctime: stat.ctime, mtime: stat.mtime } : undefined;
+        const result = await this.processor.processContent(
+          content,
+          this.settings,
+          undefined,
+          file.basename,
+          fileInfo
+        );
+
+        if (result.success && result.content && result.content !== content) {
+          await this.app.vault.modify(file, result.content);
+          success++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+
+    // 更新最终状态
+    progressModal.updateProgress({
+      currentFile: '完成',
+      processed: files.length,
+      success,
+      failed,
+    });
+
+    // 短暂延迟后关闭模态框并显示通知
+    setTimeout(() => {
+      progressModal.close();
+      showNotice(`批量格式化完成: ${success} 个文件已更新, ${failed} 个失败`);
+    }, 800);
   }
 
   /**
