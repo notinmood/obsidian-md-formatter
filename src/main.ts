@@ -37,6 +37,22 @@ export default class MarkdownFormatterPlugin extends Plugin {
 
     // 注册设置面板
     this.addSettingTab(new SettingsTab(this.app, this));
+
+    // 注册文件夹右键菜单
+    this.registerEvent(
+      this.app.workspace.on('file-menu', (menu, file) => {
+        if (file instanceof TFolder) {
+          menu.addItem((item) => {
+            item
+              .setTitle('格式化此文件夹')
+              .setIcon('format')
+              .onClick(async () => {
+                await this.formatSelectedFolder(file, true);
+              });
+          });
+        }
+      })
+    );
   }
 
   private createAIService(): AIServiceImpl | undefined {
