@@ -56,6 +56,8 @@ The plugin follows a layered architecture:
 
 **Modal Layer** (`src/modals/`)
 - `MetadataPreviewModal.ts`: Preview/edit dialog for AI-generated metadata (tags, summary, categories). Users can review and modify before applying to frontmatter.
+- `FolderSuggestModal.ts`: Folder selection dialog with fuzzy search, for batch formatting
+- `FolderFormatProgressModal.ts`: Real-time progress dialog for batch formatting (current file, progress bar, success/failed counts)
 
 **UI Layer** (`src/ui/SettingsTab.ts`)
 - Obsidian settings panel for file thresholds, encoding options, AI frontmatter config (provider management with failover), and rule toggles
@@ -154,5 +156,5 @@ docs/superpowers/
 
 ## Current Version
 
-- Version: 1.1.0 (see manifest.json and package.json)
+- Version: 1.2.0 (see manifest.json and package.json)
 - Min App Version: 1.0.0

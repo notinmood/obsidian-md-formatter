@@ -19793,14 +19793,14 @@ var MarkdownFormatterPlugin = class extends import_obsidian7.Plugin {
       id: "format-current-file",
       name: "\u683C\u5F0F\u5316\u5F53\u524D\u6587\u4EF6",
       hotkeys: [{ modifiers: ["Alt"], key: "f" }],
-      editorCallback: async (editor, view) => {
-        await this.formatCurrentFile(editor, view);
+      editorCallback: async (editor, ctx) => {
+        await this.formatCurrentFile(editor, ctx);
       }
     });
     this.addCommand({
       id: "format-selection",
       name: "\u683C\u5F0F\u5316\u9009\u4E2D\u5185\u5BB9",
-      editorCallback: async (editor, view) => {
+      editorCallback: async (editor) => {
         await this.formatSelection(editor);
       }
     });

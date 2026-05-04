@@ -1,5 +1,5 @@
 // src/main.ts
-import { Plugin, Notice, TFile, TFolder, Editor, MarkdownView } from 'obsidian';
+import { Plugin, Notice, TFile, TFolder, Editor, MarkdownView, MarkdownFileInfo } from 'obsidian';
 import { parse, Document as YamlDocument } from 'yaml';
 import { DEFAULT_SETTINGS, PluginSettings } from './types';
 import { RuleRegistry } from './core/RuleRegistry';
@@ -72,8 +72,8 @@ export default class MarkdownFormatterPlugin extends Plugin {
       id: 'format-current-file',
       name: '格式化当前文件',
       hotkeys: [{ modifiers: ['Alt'], key: 'f' }],
-      editorCallback: async (editor: Editor, view: MarkdownView) => {
-        await this.formatCurrentFile(editor, view);
+      editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
+        await this.formatCurrentFile(editor, ctx as MarkdownView);
       },
     });
 
@@ -81,7 +81,7 @@ export default class MarkdownFormatterPlugin extends Plugin {
     this.addCommand({
       id: 'format-selection',
       name: '格式化选中内容',
-      editorCallback: async (editor: Editor, view: MarkdownView) => {
+      editorCallback: async (editor: Editor) => {
         await this.formatSelection(editor);
       },
     });
